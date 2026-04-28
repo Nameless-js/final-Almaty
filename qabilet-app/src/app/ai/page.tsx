@@ -1,0 +1,193 @@
+"use client";
+
+import React, { useState, useRef, useEffect } from "react";
+import { BrainCircuit, Send, Mic, TrendingUp, Sparkles } from "lucide-react";
+import { AI_RESPONSES } from "@/lib/data";
+import { logChatMessage } from "@/app/actions";
+
+interface Message {
+  id: string;
+  text: string;
+  isUser: boolean;
+  isTyping?: boolean;
+}
+
+export default function AIPage() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      text: "Привет! Я ваш интеллектуальный помощник Qabilet. Задайте любой вопрос — я помогу с обучением, объясню сложные темы или просто поддержу вас! 💙",
+      isUser: false,
+    }
+  ]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  const logToSupabase = async (content: string, role: string) => {
+    try {
+      const res = await logChatMessage(content, role, 'ai_tutor');
+      if (res.error) console.error("Server Action Failed:", res.error);
+    } catch (err) {
+      console.error("Failed to log chat:", err);
+    }
+  };
+
+  const handleSend = async (text: string = input) => {
+    if (!text.trim()) return;
+
+    const newMsg: Message = { id: Date.now().toString(), text, isUser: true };
+    const currentMessages = [...messages, newMsg];
+    setMessages(currentMessages);
+    setInput("");
+    setIsTyping(true);
+
+    // Log user message
+    logToSupabase(text, 'user');
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: messages })
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      const aiResponse = data.text || "Извините, я не смог сгенерировать ответ.";
+      
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: aiResponse, isUser: false }]);
+      logToSupabase(aiResponse, 'assistant');
+    } catch (err: any) {
+      console.error(err);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.", isUser: false }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header & Stats Banner */}
+      <div className="flex flex-col md:flex-row gap-6 mb-6 shrink-0">
+        <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 flex items-center gap-4 shadow-sm">
+          <div className="w-14 h-14 bg-gradient-to-br from-[#F59E0B] to-[#D97706] rounded-xl flex items-center justify-center text-white shadow-lg">
+            <BrainCircuit size={28} />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-bold">ИИ-Тьютор</h2>
+            <p className="text-sm text-[var(--text-secondary)]">Ваш персональный помощник</p>
+          </div>
+        </div>
+
+        {/* Fake Analytics Widget */}
+        <div className="flex-1 bg-gradient-to-r from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
+            <Sparkles className="text-[var(--color-primary-light)] animate-pulse" />
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp size={18} className="text-[var(--color-primary-light)]" />
+            <h3 className="font-semibold text-sm uppercase tracking-wider text-[var(--color-primary-light)]">Анализ успеваемости</h3>
+          </div>
+          
+          <div className="flex items-end gap-2 h-12">
+            {[40, 65, 45, 80, 55, 90, 75].map((height, i) => (
+              <div key={i} className="flex-1 bg-[var(--bg-card2)] rounded-t-sm relative group-hover:bg-[var(--color-primary)]/20 transition-colors">
+                <div 
+                  className="absolute bottom-0 w-full bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-secondary)] rounded-t-sm transition-all duration-1000 ease-out"
+                  style={{ height: `${height}%`, animationDelay: `${i * 100}ms` }}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] mt-2 text-right font-medium">+15% продуктивности на этой неделе</p>
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl flex flex-col overflow-hidden shadow-sm">
+        
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex gap-4 max-w-[85%] ${msg.isUser ? 'ml-auto flex-row-reverse' : ''}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-sm
+                ${msg.isUser ? 'bg-[var(--surface)] border border-[var(--border-color)]' : 'bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white'}
+              `}>
+                {msg.isUser ? '👤' : '🤖'}
+              </div>
+              <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm
+                ${msg.isUser 
+                  ? 'bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tr-sm' 
+                  : 'bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 text-[var(--text-primary)] rounded-tl-sm'
+                }
+              `}>
+                {msg.text}
+              </div>
+            </div>
+          ))}
+
+          {isTyping && (
+            <div className="flex gap-4 max-w-[85%]">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-sm bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white">
+                🤖
+              </div>
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 rounded-tl-sm flex items-center gap-1.5 h-[52px]">
+                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" />
+                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" style={{ animationDelay: '0.2s' }} />
+                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" style={{ animationDelay: '0.4s' }} />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="p-4 bg-[var(--bg-card2)] border-t border-[var(--border-color)]">
+          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+            {['Объясни мне дроби', 'Что такое фотосинтез?', 'Помоги с алфавитом', 'Расскажи сказку'].map((sug, i) => (
+              <button 
+                key={i}
+                onClick={() => handleSend(sug)}
+                className="whitespace-nowrap px-4 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--color-primary-light)] hover:border-[var(--color-primary-light)] transition-colors"
+              >
+                {sug}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex gap-2">
+            <button className="p-3 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--color-primary-light)] transition-colors shrink-0">
+              <Mic size={20} />
+            </button>
+            <input 
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Задайте вопрос..."
+              className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl px-4 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all placeholder:text-[var(--text-muted)]"
+            />
+            <button 
+              onClick={() => handleSend()}
+              disabled={!input.trim()}
+              className="p-3 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] text-white rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0"
+            >
+              <Send size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

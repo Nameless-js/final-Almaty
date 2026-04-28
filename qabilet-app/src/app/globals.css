@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6C3AE8;
+  --color-primary-light: #8B5CF6;
+  --color-primary-dark: #4C1D95;
+  --color-secondary: #06B6D4;
+  --color-accent: #F59E0B;
+  
+  --color-bg-base: var(--bg);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card2: var(--bg-card2);
+  --color-surface: var(--surface);
+  --color-border-custom: var(--border-color);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --font-main: var(--font-inter);
+  --font-display: var(--font-nunito);
+}
+
+:root {
+  --bg: #0F0A1E;
+  --bg-card: #1A1235;
+  --bg-card2: #221A40;
+  --surface: #2D2055;
+  --border-color: rgba(108, 58, 232, 0.25);
+
+  --text-primary: #F0ECFF;
+  --text-secondary: #A89EC8;
+  --text-muted: #6B5E8A;
+}
+
+/* ===== THEMES ===== */
+.theme-blue {
+  --bg: #0A0F1E;
+  --bg-card: #0F1A35;
+  --bg-card2: #162040;
+  --surface: #1E2D55;
+  --border-color: rgba(37, 99, 235, 0.25);
+}
+
+.theme-green {
+  --bg: #071A12;
+  --bg-card: #0D2A1C;
+  --bg-card2: #123520;
+  --surface: #1A4D2E;
+  --border-color: rgba(5, 150, 105, 0.25);
+}
+
+.theme-dark {
+  --bg: #050505;
+  --bg-card: #111111;
+  --bg-card2: #1A1A1A;
+  --surface: #222222;
+  --border-color: rgba(107, 114, 128, 0.25);
+}
+
+/* ===== HIGH CONTRAST ===== */
+.high-contrast {
+  --bg: #000000;
+  --bg-card: #000000;
+  --bg-card2: #000000;
+  --surface: #000000;
+  --text-primary: #FFFFFF;
+  --text-secondary: #FFFF00;
+  --text-muted: #CCCCCC;
+  --border-color: #FFFFFF;
+}
+
+/* ===== LARGE FONT ===== */
+.large-font {
+  font-size: 125%;
+}
+
+/* ===== DYSLEXIA FONT ===== */
+.dyslexia-font {
+  --font-inter: 'Comic Sans MS', 'Comic Neue', cursive, sans-serif;
+  --font-nunito: 'Comic Sans MS', 'Comic Neue', cursive, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  transition: background 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+}
+
+/* Animations from original */
+@keyframes pulse-circle {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 40px rgba(108,58,232,0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 70px rgba(108,58,232,0.7); }
+}
+@keyframes ring-expand {
+  0% { opacity: 0.6; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
+.voice-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(108,58,232,0.4);
+  animation: ring-expand 2s ease-out infinite;
+}
+.ring1 { width: 160px; height: 160px; animation-delay: 0s; }
+.ring2 { width: 190px; height: 190px; animation-delay: 0.5s; }
+.ring3 { width: 220px; height: 220px; animation-delay: 1s; }
+
+.glass-panel {
+  background: rgba(26, 18, 53, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+}
