@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { BrainCircuit, Send, Mic, TrendingUp, Sparkles } from "lucide-react";
+import { BrainCircuit, Send, Mic, TrendingUp, Sparkles, MessageSquare } from "lucide-react";
 import { AI_RESPONSES } from "@/lib/data";
-import { logChatMessage } from "@/app/actions";
+import { logChatMessage, getChatHistory } from "@/app/actions";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
   id: string;
@@ -32,9 +33,33 @@ export default function AIPage() {
     scrollToBottom();
   }, [messages, isTyping]);
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const res = await getChatHistory(session.user.id);
+      if (res.data && res.data.length > 0) {
+        const historyMsgs = res.data.map((m: any) => ({
+          id: m.id.toString(),
+          text: m.content,
+          isUser: m.role === 'user'
+        }));
+        
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(msg => msg.id));
+          const uniqueHistory = historyMsgs.filter(msg => !existingIds.has(msg.id));
+          return [...prev, ...uniqueHistory];
+        });
+      }
+    };
+    fetchHistory();
+  }, []);
+
   const logToSupabase = async (content: string, role: string) => {
     try {
-      const res = await logChatMessage(content, role, 'ai_tutor');
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await logChatMessage(content, role, 'ai_tutor', session?.user.id);
       if (res.error) console.error("Server Action Failed:", res.error);
     } catch (err) {
       console.error("Failed to log chat:", err);

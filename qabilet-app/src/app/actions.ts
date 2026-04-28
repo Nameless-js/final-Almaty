@@ -89,15 +89,67 @@ export async function updateProfile(id: string, updates: any) {
   }
 }
 
-export async function logChatMessage(content: string, role: string, moduleType: string) {
+export async function logChatMessage(content: string, role: string, moduleType: string, userId?: string) {
   try {
     const { error } = await supabase.from('chat_history').insert({
       content,
       role,
       module_type: moduleType,
+      user_id: userId
     });
     if (error) return { error: error.message };
     return { success: true };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function getChatHistory(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('chat_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+    if (error) return { error: error.message };
+    return { data };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function getAIActivityCount(userId: string) {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const { count, error } = await supabase
+      .from('chat_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', today.toISOString());
+      
+    if (error) return { error: error.message };
+    return { count: count || 0 };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function getLastStudiedLesson(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('user_progress')
+      .select('lesson_id, lessons(title, course_id)')
+      .eq('user_id', userId)
+      .eq('is_completed', true)
+      .order('last_watched', { ascending: false })
+      .limit(1)
+      .single();
+      
+    if (error && error.includes('JSON object')) return { data: null }; // No data found
+    if (error) return { error: error.message };
+    return { data };
   } catch (err: any) {
     return { error: err.message || "Unknown error" };
   }

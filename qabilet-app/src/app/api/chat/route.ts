@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const { message, history } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     // Format history for Gemini
     const formattedHistory = history?.map((msg: any) => ({
