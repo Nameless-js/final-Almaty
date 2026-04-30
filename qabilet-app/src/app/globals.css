@@ -115,3 +115,36 @@ body {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
 }
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s ease-in-out infinite;
+}
+
+/* Base tailwind-animate styles if not present */
+.animate-in {
+  animation-duration: 500ms;
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fade-in-kf;
+}
+
+@keyframes fade-in-kf {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slide-in-from-bottom-4 {
+  animation-name: slide-in-bottom-kf;
+}
+
+@keyframes slide-in-bottom-kf {
+  from { transform: translateY(1rem); }
+  to { transform: translateY(0); }
+}

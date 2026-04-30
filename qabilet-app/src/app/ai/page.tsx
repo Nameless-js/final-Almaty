@@ -6,6 +6,8 @@ import { AI_RESPONSES } from "@/lib/data";
 import { logChatMessage, getChatHistory } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
 
+import { useAccessibility } from "@/components/AccessibilityProvider";
+
 interface Message {
   id: string;
   text: string;
@@ -23,7 +25,38 @@ export default function AIPage() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+
+  const { ttsEnabled } = useAccessibility();
+
+  useEffect(() => {
+    // Initialize Speech API
+    if (typeof window !== "undefined") {
+      synthRef.current = window.speechSynthesis;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "ru-RU";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          handleSend(transcript);
+        };
+        recognitionRef.current = recognition;
+      }
+    }
+    return () => {
+      if (synthRef.current) synthRef.current.cancel();
+    };
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,6 +65,33 @@ export default function AIPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping]);
+
+  const cleanTextForSpeech = (text: string) => {
+    return text
+      .replace(/[*_#~`>|]/g, '')
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      .replace(/ {2,}/g, ' ')
+      .trim();
+  };
+
+  const speakText = (text: string) => {
+    if (!ttsEnabled || !synthRef.current) return;
+    synthRef.current.cancel();
+    const cleaned = cleanTextForSpeech(text);
+    const utterance = new SpeechSynthesisUtterance(cleaned);
+    utterance.lang = "ru-RU";
+    utterance.rate = 1.0;
+    synthRef.current.speak(utterance);
+  };
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+    }
+  };
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -70,12 +130,10 @@ export default function AIPage() {
     if (!text.trim()) return;
 
     const newMsg: Message = { id: Date.now().toString(), text, isUser: true };
-    const currentMessages = [...messages, newMsg];
-    setMessages(currentMessages);
+    setMessages(prev => [...prev, newMsg]);
     setInput("");
     setIsTyping(true);
 
-    // Log user message
     logToSupabase(text, 'user');
 
     try {
@@ -86,16 +144,21 @@ export default function AIPage() {
       });
       
       const data = await response.json();
-      
       if (data.error) throw new Error(data.error);
       
       const aiResponse = data.text || "Извините, я не смог сгенерировать ответ.";
       
       setMessages(prev => [...prev, { id: Date.now().toString(), text: aiResponse, isUser: false }]);
       logToSupabase(aiResponse, 'assistant');
+      
+      // Auto-speak AI response
+      speakText(aiResponse);
+
     } catch (err: any) {
       console.error(err);
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.", isUser: false }]);
+      const errorMsg = "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.";
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: errorMsg, isUser: false }]);
+      speakText(errorMsg);
     } finally {
       setIsTyping(false);
     }
@@ -116,7 +179,7 @@ export default function AIPage() {
           </div>
         </div>
 
-        {/* Fake Analytics Widget */}
+        {/* Analytics Widget */}
         <div className="flex-1 bg-gradient-to-r from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-5 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
             <Sparkles className="text-[var(--color-primary-light)] animate-pulse" />
@@ -151,13 +214,21 @@ export default function AIPage() {
               `}>
                 {msg.isUser ? '👤' : '🤖'}
               </div>
-              <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm
+              <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm relative group
                 ${msg.isUser 
                   ? 'bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tr-sm' 
                   : 'bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 text-[var(--text-primary)] rounded-tl-sm'
                 }
               `}>
                 {msg.text}
+                {!msg.isUser && (
+                  <button 
+                    onClick={() => speakText(msg.text)}
+                    className="absolute -right-10 top-0 p-2 text-[var(--text-muted)] hover:text-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <MessageSquare size={16} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -192,7 +263,10 @@ export default function AIPage() {
           </div>
           
           <div className="flex gap-2">
-            <button className="p-3 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--color-primary-light)] transition-colors shrink-0">
+            <button 
+              onClick={toggleListening}
+              className={`p-3 border rounded-xl transition-all shrink-0 ${isListening ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-[var(--bg-card)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--color-primary-light)]'}`}
+            >
               <Mic size={20} />
             </button>
             <input 
@@ -200,7 +274,7 @@ export default function AIPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Задайте вопрос..."
+              placeholder={isListening ? "Слушаю..." : "Задайте вопрос..."}
               className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl px-4 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all placeholder:text-[var(--text-muted)]"
             />
             <button 

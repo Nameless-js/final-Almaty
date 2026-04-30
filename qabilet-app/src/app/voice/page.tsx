@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, Volume2, Square } from "lucide-react";
+import { Mic, Volume2, Square, Loader2 } from "lucide-react";
 import { useAccessibility } from "@/components/AccessibilityProvider";
 import { logChatMessage } from "@/app/actions";
+import { useRouter } from "next/navigation";
 
 export default function VoicePage() {
   const [isListening, setIsListening] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("Нажмите для начала");
   const [transcript, setTranscript] = useState("Здесь появится ваша речь...");
   const [output, setOutput] = useState("Голосовой ответ появится здесь");
   const [isOutputActive, setIsOutputActive] = useState(false);
   
+  const router = useRouter();
   const { ttsEnabled } = useAccessibility();
   
   const recognitionRef = useRef<any>(null);
@@ -88,37 +91,99 @@ export default function VoicePage() {
     }
   };
 
-  const processCommand = (text: string) => {
+  const processCommand = async (text: string) => {
     // Log user command
     logToSupabase(text, 'user');
+    setIsLoading(true);
+    setStatus("Обработка...");
 
-    // Simple mock commands response
-    let reply = `Я слышу вас: "${text}". Как я могу помочь?`;
-    
-    if (text.includes("открыть обучение")) reply = "Открываю раздел обучения...";
-    else if (text.includes("помощь")) reply = "Я ваш голосовой помощник. Вы можете попросить меня открыть разные разделы.";
-    
+    const lowerText = text.toLowerCase().trim();
+
+    // 1. Navigation Logic
+    if (lowerText.includes("открой") || lowerText.includes("перейди") || lowerText.includes("покажи")) {
+      if (lowerText.includes("обучение") || lowerText.includes("урок")) {
+        const reply = "Открываю раздел обучения. Успехов в учебе!";
+        executeNavigation("/learn", reply);
+        return;
+      }
+      if (lowerText.includes("жест") || lowerText.includes("алфавит")) {
+        const reply = "Перехожу к разделу жестового языка.";
+        executeNavigation("/signs", reply);
+        return;
+      }
+      if (lowerText.includes("тьютор") || lowerText.includes("ии") || lowerText.includes("чат")) {
+        const reply = "Открываю ИИ-тьютора. Он ответит на все ваши вопросы.";
+        executeNavigation("/ai", reply);
+        return;
+      }
+      if (lowerText.includes("главн") || lowerText.includes("домой")) {
+        const reply = "Возвращаемся на главную страницу.";
+        executeNavigation("/", reply);
+        return;
+      }
+    }
+
+    // 2. AI Response Logic (for general questions)
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: text,
+          history: [] // We can add history later if needed
+        }),
+      });
+
+      const data = await response.json();
+      const reply = data.text || "Извините, я не смог обработать ваш запрос.";
+      
+      setVoiceOutput(reply);
+      if (ttsEnabled) speakText(reply);
+      logToSupabase(reply, 'assistant');
+    } catch (error) {
+      console.error("Voice Assistant AI Error:", error);
+      const errorReply = "Произошла ошибка при связи с моим мозгом. Попробуйте еще раз.";
+      setVoiceOutput(errorReply);
+      if (ttsEnabled) speakText(errorReply);
+    } finally {
+      setIsLoading(false);
+      setStatus(isListening ? "🔴 Слушаю вас..." : "Нажмите для начала");
+    }
+  };
+
+  const executeNavigation = (path: string, reply: string) => {
     setVoiceOutput(reply);
     if (ttsEnabled) speakText(reply);
-
-    // Log assistant reply
     logToSupabase(reply, 'assistant');
+    
+    // Brief delay before navigation so the user hears the confirmation
+    setTimeout(() => {
+      router.push(path);
+      setIsLoading(false);
+    }, 1500);
   };
 
   const setVoiceOutput = (text: string) => {
     setOutput(text);
     setIsOutputActive(true);
-    setTimeout(() => setIsOutputActive(false), 1000);
+    setTimeout(() => setIsOutputActive(false), 2000);
   };
 
   const speakText = (text: string) => {
     if (!ttsEnabled || !synthRef.current) return;
     
+    // Clean text for TTS (remove markdown characters and emojis)
+    const cleanedText = text
+      .replace(/[*_#~`>|]/g, '') // Remove common markdown
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '') // Remove most emojis
+      .replace(/ {2,}/g, ' ') // Remove double spaces
+      .trim();
+
     synthRef.current.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
     utterance.lang = "ru-RU";
-    utterance.rate = 0.9;
-    utterance.pitch = 1.05;
+    utterance.rate = 0.95; // Slightly faster for natural flow
+    utterance.pitch = 1.0;
     
     const voices = synthRef.current.getVoices();
     const ruVoice = voices.find(v => v.lang.startsWith("ru"));
@@ -189,10 +254,26 @@ export default function VoicePage() {
       </div>
 
       <div className={`bg-gradient-to-r from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/30 rounded-2xl p-5 flex items-start gap-4 transition-all duration-500 ${isOutputActive ? 'border-[var(--color-primary)] shadow-[0_0_20px_rgba(108,58,232,0.3)] scale-[1.02]' : ''}`}>
-        <Volume2 className="text-[var(--color-primary-light)] shrink-0" size={28} />
-        <p className="text-[var(--text-primary)] font-medium leading-relaxed">
-          {output}
-        </p>
+        <div className="shrink-0 pt-1">
+          {isLoading ? (
+            <Loader2 className="text-[var(--color-primary-light)] animate-spin" size={28} />
+          ) : (
+            <Volume2 className="text-[var(--color-primary-light)]" size={28} />
+          )}
+        </div>
+        <div className="flex-1">
+          {isLoading ? (
+            <div className="flex gap-1.5 items-center h-7">
+              <div className="w-1.5 h-1.5 bg-[var(--color-primary-light)] rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <div className="w-1.5 h-1.5 bg-[var(--color-primary-light)] rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-1.5 h-1.5 bg-[var(--color-primary-light)] rounded-full animate-bounce" />
+            </div>
+          ) : (
+            <p className="text-[var(--text-primary)] font-medium leading-relaxed">
+              {output}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-4 w-full pt-4">
