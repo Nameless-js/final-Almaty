@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { BrainCircuit, Send, Mic, TrendingUp, Sparkles, MessageSquare } from "lucide-react";
+import { BrainCircuit, Send, Mic, TrendingUp, Sparkles, MessageSquare, X, RefreshCw } from "lucide-react";
 import { AI_RESPONSES } from "@/lib/data";
-import { logChatMessage, getChatHistory } from "@/app/actions";
+import { logChatMessage, getChatHistory, getGesturesLibrary, seedGestures } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
-
 import { useAccessibility } from "@/components/AccessibilityProvider";
+import SignAvatar from "@/components/SignAvatar";
 
 interface Message {
   id: string;
@@ -26,12 +26,49 @@ export default function AIPage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [gestureLibrary, setGestureLibrary] = useState<any[]>([]);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const { ttsEnabled } = useAccessibility();
+
+  // Load Library on Mount
+  useEffect(() => {
+    const loadLibrary = async () => {
+      const res = await getGesturesLibrary();
+      if (res.data) setGestureLibrary(res.data);
+    };
+    loadLibrary();
+  }, []);
+
+  // Check for keywords in messages
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && !lastMsg.isUser) {
+      const text = lastMsg.text.toLowerCase();
+      const match = gestureLibrary.find(g => text.includes(g.word.toLowerCase()));
+      if (match) {
+        setActiveWord(match.word);
+      }
+    }
+  }, [messages, gestureLibrary]);
+
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    const res = await seedGestures();
+    if (res.success) {
+      const res2 = await getGesturesLibrary();
+      if (res2.data) setGestureLibrary(res2.data);
+    }
+    setIsSeeding(false);
+  };
 
   useEffect(() => {
     // Initialize Speech API
@@ -165,18 +202,47 @@ export default function AIPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       
+      {/* Avatar Video Overlay */}
+      <div className="fixed top-24 right-8 z-30 w-64 group">
+        <SignAvatar 
+          currentWord={activeWord} 
+          className="shadow-2xl border-4 border-[var(--color-primary)]" 
+        />
+        {activeWord && (
+          <button 
+            onClick={() => setActiveWord(null)}
+            className="absolute -top-2 -right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-40 border border-white/20"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Header & Stats Banner */}
       <div className="flex flex-col md:flex-row gap-6 mb-6 shrink-0">
-        <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 flex items-center gap-4 shadow-sm">
-          <div className="w-14 h-14 bg-gradient-to-br from-[#F59E0B] to-[#D97706] rounded-xl flex items-center justify-center text-white shadow-lg">
-            <BrainCircuit size={28} />
+        <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-[#F59E0B] to-[#D97706] rounded-xl flex items-center justify-center text-white shadow-lg">
+              <BrainCircuit size={28} />
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-bold">ИИ-Тьютор</h2>
+              <p className="text-sm text-[var(--text-secondary)]">Ваш персональный помощник</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-display text-xl font-bold">ИИ-Тьютор</h2>
-            <p className="text-sm text-[var(--text-secondary)]">Ваш персональный помощник</p>
-          </div>
+          
+          {gestureLibrary.length === 0 && (
+            <button 
+              onClick={handleSeed}
+              disabled={isSeeding}
+              className="p-2 text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary)]/20 transition-colors flex items-center gap-2"
+            >
+              <RefreshCw size={14} className={isSeeding ? "animate-spin" : ""} />
+              {isSeeding ? "Синхронизация..." : "Синхронизировать базу"}
+            </button>
+          )}
         </div>
 
         {/* Analytics Widget */}

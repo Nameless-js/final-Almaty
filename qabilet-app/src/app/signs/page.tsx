@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { HandMetal, Camera, Book, Search, Video, X, Info, Hand } from "lucide-react";
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
+import { getGesturesLibrary, seedGestures } from "@/app/actions";
+import SignAvatar from "@/components/SignAvatar";
 
 // MediaPipe types (simplified for usage)
 type HandLandmark = { x: number; y: number; z: number };
@@ -19,6 +21,8 @@ export default function SignsPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isHandsReady, setIsHandsReady] = useState(false);
   const [detectedLetter, setDetectedLetter] = useState<string | null>(null);
+  const [recognizedWord, setRecognizedWord] = useState<string | null>(null);
+  const [gesturesLibrary, setGesturesLibrary] = useState<any[]>([]);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,8 +39,185 @@ export default function SignsPage() {
     a.letter.toLowerCase().includes(search.toLowerCase())
   );
 
+  const normalizeLandmarks = (landmarks: HandLandmark[]) => {
+    if (!landmarks || landmarks.length === 0) return [];
+    const base = landmarks[0];
+    const scale = Math.sqrt(
+      Math.pow(landmarks[5].x - landmarks[0].x, 2) + 
+      Math.pow(landmarks[5].y - landmarks[0].y, 2)
+    ) || 1;
+
+    return landmarks.map(p => ({
+      x: (p.x - base.x) / scale,
+      y: (p.y - base.y) / scale
+    }));
+  };
+
+  const compareGestures = (detected: HandLandmark[], pattern: any[]) => {
+    if (!detected || !pattern || detected.length !== pattern.length) return 100;
+    
+    const normDetected = normalizeLandmarks(detected);
+    const normPattern = normalizeLandmarks(pattern);
+
+    let dist = 0;
+    for (let i = 0; i < normDetected.length; i++) {
+      dist += Math.sqrt(
+        Math.pow(normDetected[i].x - normPattern[i].x, 2) + 
+        Math.pow(normDetected[i].y - normPattern[i].y, 2)
+      );
+    }
+    return dist / normDetected.length;
+  };
+
+  const stopCamera = () => {
+    cameraActiveRef.current = false;
+    if (requestRef.current) {
+      cancelAnimationFrame(requestRef.current);
+      requestRef.current = null;
+    }
+    
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+    setIsHandDetected(false);
+  };
+
+  const startDetectionLoop = () => {
+    const process = async () => {
+      if (videoRef.current && handsRef.current && cameraActiveRef.current) {
+        try {
+          await handsRef.current.send({ image: videoRef.current });
+        } catch (e) {
+          console.error("MediaPipe send error", e);
+        }
+      }
+      if (cameraActiveRef.current) {
+        requestRef.current = requestAnimationFrame(process);
+      }
+    };
+    requestRef.current = requestAnimationFrame(process);
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    if (!videoRef.current && activeTab === "camera") {
+      // Retry if element not yet available
+      setTimeout(startCamera, 100);
+      return;
+    }
+
+    try {
+      const constraints = {
+        video: { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        } 
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(e => console.error("Play error:", e));
+          setIsCameraActive(true);
+          cameraActiveRef.current = true;
+          startDetectionLoop();
+        };
+      }
+    } catch (err: any) {
+      console.error("Camera access error:", err);
+      let errorMsg = "Ошибка доступа к камере. Убедитесь, что вы разрешили доступ в браузере.";
+      if (err.name === 'NotAllowedError') errorMsg = "Доступ к камере отклонен. Пожалуйста, разрешите доступ в настройках браузера.";
+      if (err.name === 'NotFoundError') errorMsg = "Камера не найдена. Подключите устройство и попробуйте снова.";
+      setCameraError(errorMsg);
+      setIsCameraActive(false);
+      cameraActiveRef.current = false;
+    }
+  };
+
+  const onResults = (results: any) => {
+    if (!canvasRef.current) return;
+
+    const canvasCtx = canvasRef.current.getContext("2d");
+    if (!canvasCtx) return;
+
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      setIsHandDetected(true);
+      
+      const landmarks = results.multiHandLandmarks[0];
+      
+      // 1. Library-based recognition
+      let bestMatch = null;
+      let minDistance = 0.15; // Threshold for a good match
+
+      for (const gesture of gesturesLibrary) {
+        if (gesture.pattern_json) {
+          const dist = compareGestures(landmarks, gesture.pattern_json);
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestMatch = gesture.word;
+          }
+        }
+      }
+      setRecognizedWord(bestMatch);
+
+      // 2. Heuristic for Letter Recognition (fallback/complementary)
+      const isFingerExtended = (tip: number, pip: number) => landmarks[tip].y < landmarks[pip].y;
+      
+      const indexExtended = isFingerExtended(8, 6);
+      const middleExtended = isFingerExtended(12, 10);
+      const ringExtended = isFingerExtended(16, 14);
+      const pinkyExtended = isFingerExtended(20, 18);
+
+      let letter = null;
+
+      if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) letter = 'А';
+      else if (indexExtended && middleExtended && ringExtended && pinkyExtended) letter = 'В';
+      else if (!indexExtended && !middleExtended && !ringExtended && pinkyExtended) letter = 'И';
+      else if (indexExtended && !middleExtended && !ringExtended && pinkyExtended) letter = 'У';
+
+      setDetectedLetter(letter);
+
+      Promise.all([
+        import("@mediapipe/drawing_utils"),
+        import("@mediapipe/hands")
+      ]).then(([drawingUtils, hands]) => {
+        const connections = hands.HAND_CONNECTIONS || [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+        for (const handLandmarks of results.multiHandLandmarks) {
+          drawingUtils.drawConnectors(canvasCtx, handLandmarks, connections, {
+            color: "#6C3AE8",
+            lineWidth: 5,
+          });
+          drawingUtils.drawLandmarks(canvasCtx, handLandmarks, {
+            color: "#FFFFFF",
+            lineWidth: 2,
+            radius: 4,
+          });
+        }
+      });
+    } else {
+      setIsHandDetected(false);
+      setDetectedLetter(null);
+    }
+    canvasCtx.restore();
+  };
+
   // Initialize MediaPipe Hands once
   useEffect(() => {
+    const loadLibrary = async () => {
+      const res = await getGesturesLibrary();
+      if (res.data) setGesturesLibrary(res.data);
+    };
+    loadLibrary();
+
     const initHands = async () => {
       try {
         const { Hands } = await import("@mediapipe/hands");
@@ -80,145 +261,6 @@ export default function SignsPage() {
       stopCamera();
     }
   }, [activeTab]);
-
-  const onResults = (results: any) => {
-    if (!canvasRef.current) return;
-
-    const canvasCtx = canvasRef.current.getContext("2d");
-    if (!canvasCtx) return;
-
-    canvasCtx.save();
-    canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      setIsHandDetected(true);
-      
-      const landmarks = results.multiHandLandmarks[0];
-      
-      // Simple Heuristic for Letter Recognition
-      // 1. Check if fingers are extended
-      const isFingerExtended = (tip: number, pip: number) => landmarks[tip].y < landmarks[pip].y;
-      
-      const indexExtended = isFingerExtended(8, 6);
-      const middleExtended = isFingerExtended(12, 10);
-      const ringExtended = isFingerExtended(16, 14);
-      const pinkyExtended = isFingerExtended(20, 18);
-
-      let letter = null;
-
-      // Heuristic for 'А' (Fist - all fingers folded)
-      if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
-        letter = 'А';
-      } 
-      // Heuristic for 'В' (All fingers extended)
-      else if (indexExtended && middleExtended && ringExtended && pinkyExtended) {
-        letter = 'В';
-      }
-      // Heuristic for 'И' (Only pinky extended)
-      else if (!indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
-        letter = 'И';
-      }
-      // Heuristic for 'У' (Index and pinky extended)
-      else if (indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
-        letter = 'У';
-      }
-
-      setDetectedLetter(letter);
-
-      Promise.all([
-        import("@mediapipe/drawing_utils"),
-        import("@mediapipe/hands")
-      ]).then(([drawingUtils, hands]) => {
-        const connections = hands.HAND_CONNECTIONS || [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
-        for (const handLandmarks of results.multiHandLandmarks) {
-          drawingUtils.drawConnectors(canvasCtx, handLandmarks, connections, {
-            color: "#6C3AE8",
-            lineWidth: 5,
-          });
-          drawingUtils.drawLandmarks(canvasCtx, handLandmarks, {
-            color: "#FFFFFF",
-            lineWidth: 2,
-            radius: 4,
-          });
-        }
-      });
-    } else {
-      setIsHandDetected(false);
-      setDetectedLetter(null);
-    }
-    canvasCtx.restore();
-  };
-
-  const startCamera = async () => {
-    setCameraError(null);
-    if (!videoRef.current && activeTab === "camera") {
-      // Retry if element not yet available
-      setTimeout(startCamera, 100);
-      return;
-    }
-
-    try {
-      const constraints = {
-        video: { 
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user"
-        } 
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch(e => console.error("Play error:", e));
-          setIsCameraActive(true);
-          cameraActiveRef.current = true;
-          startDetectionLoop();
-        };
-      }
-    } catch (err: any) {
-      console.error("Camera access error:", err);
-      let errorMsg = "Ошибка доступа к камере. Убедитесь, что вы разрешили доступ в браузере.";
-      if (err.name === 'NotAllowedError') errorMsg = "Доступ к камере отклонен. Пожалуйста, разрешите доступ в настройках браузера.";
-      if (err.name === 'NotFoundError') errorMsg = "Камера не найдена. Подключите устройство и попробуйте снова.";
-      setCameraError(errorMsg);
-      setIsCameraActive(false);
-      cameraActiveRef.current = false;
-    }
-  };
-
-  const startDetectionLoop = () => {
-    const process = async () => {
-      if (videoRef.current && handsRef.current && cameraActiveRef.current) {
-        try {
-          await handsRef.current.send({ image: videoRef.current });
-        } catch (e) {
-          console.error("MediaPipe send error", e);
-        }
-      }
-      if (cameraActiveRef.current) {
-        requestRef.current = requestAnimationFrame(process);
-      }
-    };
-    requestRef.current = requestAnimationFrame(process);
-  };
-
-  const stopCamera = () => {
-    cameraActiveRef.current = false;
-    if (requestRef.current) {
-      cancelAnimationFrame(requestRef.current);
-      requestRef.current = null;
-    }
-    
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-    setIsHandDetected(false);
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto pb-20">
@@ -401,11 +443,13 @@ export default function SignsPage() {
               </div>
             </div>
 
-            {detectedLetter && (
+            {(detectedLetter || recognizedWord) && (
               <div className="flex items-center gap-3 animate-in zoom-in duration-300">
-                <div className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-tighter">Распознано:</div>
-                <div className="w-12 h-12 bg-[var(--color-primary)] text-white rounded-xl flex items-center justify-center text-2xl font-black shadow-lg shadow-[var(--color-primary)]/30 animate-bounce-slow">
-                  {detectedLetter}
+                <div className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-tighter text-right">
+                  {recognizedWord ? "Слово:" : "Буква:"}
+                </div>
+                <div className="px-4 h-12 bg-[var(--color-primary)] text-white rounded-xl flex items-center justify-center text-xl font-black shadow-lg shadow-[var(--color-primary)]/30 animate-bounce-slow min-w-[3rem]">
+                  {recognizedWord || detectedLetter}
                 </div>
               </div>
             )}
@@ -443,8 +487,8 @@ export default function SignsPage() {
                 </button>
               </div>
               
-              <div className="relative z-0 flex flex-col items-center">
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-2xl mb-4 border-4 border-white/50 relative overflow-hidden">
+              <div className="relative z-0 flex flex-col items-center w-full px-8">
+                <div className="w-full aspect-video bg-white rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-4 border-white/50 relative overflow-hidden">
                   {selectedSign.isLetter ? (
                     <div className="w-full h-full relative p-4">
                       <Image 
@@ -460,7 +504,10 @@ export default function SignsPage() {
                       <span className="absolute inset-0 flex items-center justify-center text-5xl font-black text-[var(--color-primary)] opacity-20">{selectedSign.word.split(' ')[1]}</span>
                     </div>
                   ) : (
-                    <span className="text-6xl">{selectedSign.emoji}</span>
+                    <SignAvatar 
+                      currentWord={selectedSign.word} 
+                      className="w-full h-full border-none shadow-none" 
+                    />
                   )}
                 </div>
                 <div className="px-4 py-1 bg-[var(--color-primary)] text-white text-[10px] font-bold rounded-full uppercase tracking-tighter">

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const supabaseUrl = 'https://jtubizlrigutrhwcdmqd.supabase.co';
 const supabaseKey = 'sb_secret_cm8cHWAy5Nk3IDyY5HJ35g_eqj3e4tO';
@@ -152,5 +153,81 @@ export async function getLastStudiedLesson(userId: string) {
     return { data };
   } catch (err: any) {
     return { error: err.message || "Unknown error" };
+  }
+}
+export async function getGesturesLibrary() {
+  try {
+    const { data, error } = await supabase.from('gestures_library').select('*');
+    if (error) return { error: error.message };
+    return { data };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function seedGestures() {
+  const apiKey = process.env.GEMINI_KEY;
+  if (!apiKey) return { error: "GEMINI_KEY is not defined in environment variables" };
+  
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const coreWords = [
+    { ru: "Привет", kk: "Сәлем", cat: "Базовые фразы" },
+    { ru: "Спасибо", kk: "Рақмет", cat: "Базовые фразы" },
+    { ru: "Помощь", kk: "Көмек", cat: "Базовые фразы" },
+    { ru: "Мама", kk: "Ана", cat: "Семья" },
+    { ru: "Папа", kk: "Әке", cat: "Семья" },
+    { ru: "Я тебя люблю", kk: "Мен се canі жақсы көремін", cat: "Эмоции" },
+    { ru: "Вода", kk: "Су", cat: "Еда и напитки" },
+    { ru: "Еда", kk: "Тамақ", cat: "Еда и напитки" },
+    { ru: "Да", kk: "Иә", cat: "Базовые фразы" },
+    { ru: "Нет", kk: "Жоқ", cat: "Базовые фразы" },
+  ];
+
+  const kazakhDactyl = [
+    { letter: "Ә", slug: "ae" }, { letter: "Ғ", slug: "gh" }, 
+    { letter: "Қ", slug: "q" }, { letter: "Ң", slug: "ng" }, 
+    { letter: "Ө", slug: "oe" }, { letter: "Ұ", slug: "u_short" }, 
+    { letter: "Ү", slug: "u_long" }, { letter: "Һ", slug: "h" }, { letter: "І", slug: "i_short" }
+  ];
+
+  const entries: any[] = [];
+
+  // Process core words
+  for (const item of coreWords) {
+    // RU version
+    entries.push({
+      word: item.ru.toLowerCase(),
+      language: 'ru',
+      category: item.cat,
+      video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/ru/${item.ru.toLowerCase()}.mp4`,
+    });
+    // KK version
+    entries.push({
+      word: item.kk.toLowerCase(),
+      language: 'kk',
+      category: item.cat,
+      video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/kk/${item.kk.toLowerCase()}.mp4`,
+    });
+  }
+
+  // Process Kazakh Dactyl
+  for (const item of kazakhDactyl) {
+    entries.push({
+      word: item.letter,
+      language: 'kk',
+      category: 'Алфавит',
+      video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/kk/dactyl/${item.slug}.mp4`,
+    });
+  }
+
+  try {
+    const { error } = await supabase.from('gestures_library').upsert(entries, { onConflict: 'word,language' });
+    if (error) throw error;
+    return { success: true, count: entries.length };
+  } catch (err: any) {
+    console.error("Seeding error:", err);
+    return { error: err.message };
   }
 }
