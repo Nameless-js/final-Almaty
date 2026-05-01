@@ -81,83 +81,159 @@ export default function GesturesPage() {
   }, []);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
-      
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto relative">
+
+      {/* Ambient glow */}
+      <div
+        className="absolute top-0 right-0 w-80 h-64 pointer-events-none -z-0"
+        style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(124,58,237,0.1) 0%, transparent 70%)' }}
+      />
+
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 relative z-10 pt-2">
         <div>
-          <h2 className="font-display text-3xl font-bold mb-2">Переводчик жестов</h2>
-          <p className="text-[var(--text-secondary)]">Интеллектуальная система распознавания жестового языка</p>
+          <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-2">AI визия</p>
+          <h2 className="font-display text-3xl md:text-4xl font-black mb-1">Переводчик <span className="gradient-text">жестов</span></h2>
+          <p className="text-[var(--text-secondary)] text-sm">Интеллектуальная система распознавания жестового языка</p>
         </div>
-        <div className={`px-6 py-3 rounded-2xl border flex items-center gap-3 transition-all duration-300
-          ${handDetected ? 'bg-green-500/10 border-green-500/30 text-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'bg-[var(--bg-card)] border-[var(--border-color)] text-[var(--text-secondary)]'}
-        `}>
-          <Hand className={handDetected ? "animate-bounce" : ""} size={20} />
-          <span className="font-bold text-sm uppercase tracking-wider">{status}</span>
+        <div
+          className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl transition-all duration-500 shrink-0"
+          style={handDetected ? {
+            background: 'rgba(52,211,153,0.1)',
+            border: '1px solid rgba(52,211,153,0.3)',
+            boxShadow: '0 0 20px rgba(52,211,153,0.15)',
+          } : {
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <Hand
+            size={18}
+            style={{ color: handDetected ? '#34D399' : 'var(--text-muted)' }}
+            className={handDetected ? 'animate-bounce' : ''}
+          />
+          <span
+            className="font-bold text-sm uppercase tracking-wider"
+            style={{ color: handDetected ? '#34D399' : 'var(--text-secondary)' }}
+          >
+            {status}
+          </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Camera Feed */}
-        <div className="lg:col-span-2 relative aspect-video bg-black rounded-3xl overflow-hidden border-2 border-[var(--border-color)] shadow-2xl group">
+        <div
+          className="lg:col-span-2 relative aspect-video rounded-3xl overflow-hidden"
+          style={{
+            background: '#000',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.1)',
+          }}
+        >
           <video ref={videoRef} className="hidden" />
           <canvas ref={canvasRef} className="w-full h-full object-cover mirror" width="640" height="480" />
-          
+
           {!isCameraActive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-8 text-center space-y-4">
-              <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-              <p className="font-medium">Запуск нейронной сети MediaPipe...</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}>
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ border: '2px solid rgba(124,58,237,0.3)', borderTopColor: 'var(--color-primary)', animation: 'spin 1s linear infinite' }}
+              />
+              <p className="font-display font-bold text-lg text-white tracking-wide">Запуск нейронной сети MediaPipe...</p>
             </div>
           )}
 
-          <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end pointer-events-none">
-            <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white text-xs font-mono">
-              AI VISION ENABLED: HAND_LANDMARKS_V2
+          <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
+            <div
+              className="px-3 py-1.5 rounded-xl text-[10px] font-mono"
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
+            >
+              AI VISION • HAND_LANDMARKS_V2
             </div>
-            <div className="flex gap-2">
-              <div className={`w-3 h-3 rounded-full ${isCameraActive ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-500'}`} />
-            </div>
+            <div
+              className="w-2.5 h-2.5 rounded-full"
+              style={isCameraActive ? {
+                background: '#22c55e',
+                boxShadow: '0 0 10px #22c55e',
+              } : { background: '#ef4444' }}
+            />
           </div>
         </div>
 
         {/* Info & Results */}
-        <div className="space-y-6">
-          <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-6 shadow-sm">
-            <h3 className="font-display font-bold text-xl mb-4 flex items-center gap-2">
-              <Info size={20} className="text-[var(--color-primary-light)]" />
+        <div className="space-y-5">
+          <div
+            className="relative overflow-hidden rounded-3xl p-6"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div
+              className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(167,139,250,0.3), transparent)' }}
+            />
+            <h3 className="font-display font-bold text-base mb-4 flex items-center gap-2">
+              <Info size={17} className="text-[var(--color-primary-light)]" />
               Инструкция
             </h3>
-            <ul className="space-y-4 text-sm text-[var(--text-secondary)]">
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] flex items-center justify-center shrink-0 font-bold">1</span>
-                <span>Убедитесь, что ваше лицо и руки хорошо освещены.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] flex items-center justify-center shrink-0 font-bold">2</span>
-                <span>Поместите ладонь полностью в рамку камеры.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] flex items-center justify-center shrink-0 font-bold">3</span>
-                <span>Система автоматически отрисует скелет вашей руки.</span>
-              </li>
+            <ul className="space-y-3">
+              {[
+                'Убедитесь, что ваше лицо и руки хорошо освещены.',
+                'Поместите ладонь полностью в рамку камеры.',
+                'Система автоматически отрисует скелет вашей руки.',
+              ].map((text, i) => (
+                <li key={i} className="flex gap-3 text-sm">
+                  <span
+                    className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs"
+                    style={{
+                      background: 'rgba(124,58,237,0.15)',
+                      border: '1px solid rgba(124,58,237,0.2)',
+                      color: 'var(--color-primary-light)',
+                    }}
+                  >{i + 1}</span>
+                  <span className="text-[var(--text-secondary)] leading-relaxed">{text}</span>
+                </li>
+              ))}
             </ul>
           </div>
 
-          <div className="bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] rounded-3xl p-6 text-white shadow-lg overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4 opacity-20">
-              <Hand size={80} />
+          <div
+            className="relative overflow-hidden rounded-3xl p-6"
+            style={{
+              background: 'linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)',
+              boxShadow: '0 8px 32px rgba(124,58,237,0.4)',
+            }}
+          >
+            <div className="absolute -right-4 -bottom-4 opacity-15 pointer-events-none">
+              <Hand size={80} color="white" />
             </div>
             <div className="relative z-10">
-              <h4 className="font-bold text-lg mb-2">Технология MediaPipe</h4>
-              <p className="text-white/80 text-xs leading-relaxed">
-                Мы используем передовые алгоритмы машинного зрения Google для отслеживания 21 ключевой точки ладони в 3D пространстве.
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
+                style={{ background: 'rgba(255,255,255,0.15)' }}
+              >
+                <Info size={16} color="white" />
+              </div>
+              <h4 className="font-bold text-base mb-2 text-white">Технология MediaPipe</h4>
+              <p className="text-white/75 text-xs leading-relaxed">
+                Мы используем передовые алгоритмы Google для отслеживания 21 ключевой точки ладони в 3D пространстве.
               </p>
             </div>
           </div>
 
           {!isCameraActive && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex gap-3 text-amber-500 text-sm italic">
-              <AlertCircle size={18} className="shrink-0" />
+            <div
+              className="p-4 rounded-2xl flex gap-3 text-sm"
+              style={{
+                background: 'rgba(245,158,11,0.08)',
+                border: '1px solid rgba(245,158,11,0.25)',
+                color: '#FCD34D',
+              }}
+            >
+              <AlertCircle size={17} className="shrink-0 mt-0.5" />
               <p>Разрешите браузеру доступ к камере, чтобы запустить переводчик.</p>
             </div>
           )}

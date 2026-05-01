@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { BrainCircuit, Send, Mic, TrendingUp, Sparkles, MessageSquare, X, RefreshCw } from "lucide-react";
+import { BrainCircuit, Send, Mic, TrendingUp, Sparkles, Volume2, X, RefreshCw } from "lucide-react";
 import { AI_RESPONSES } from "@/lib/data";
 import { logChatMessage, getChatHistory, getGesturesLibrary, seedGestures } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
@@ -27,16 +27,16 @@ export default function AIPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [gestureLibrary, setGestureLibrary] = useState<any[]>([]);
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
-  
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { ttsEnabled } = useAccessibility();
 
-  // Load Library on Mount
   useEffect(() => {
     const loadLibrary = async () => {
       const res = await getGesturesLibrary();
@@ -45,20 +45,14 @@ export default function AIPage() {
     loadLibrary();
   }, []);
 
-  // Check for keywords in messages
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && !lastMsg.isUser) {
       const text = lastMsg.text.toLowerCase();
       const match = gestureLibrary.find(g => text.includes(g.word.toLowerCase()));
-      if (match) {
-        setActiveWord(match.word);
-      }
+      if (match) setActiveWord(match.word);
     }
   }, [messages, gestureLibrary]);
-
-  const [activeWord, setActiveWord] = useState<string | null>(null);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   const handleSeed = async () => {
     setIsSeeding(true);
@@ -71,7 +65,6 @@ export default function AIPage() {
   };
 
   useEffect(() => {
-    // Initialize Speech API
     if (typeof window !== "undefined") {
       synthRef.current = window.speechSynthesis;
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -80,7 +73,6 @@ export default function AIPage() {
         recognition.lang = "ru-RU";
         recognition.continuous = false;
         recognition.interimResults = false;
-
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
         recognition.onresult = (event: any) => {
@@ -90,26 +82,15 @@ export default function AIPage() {
         recognitionRef.current = recognition;
       }
     }
-    return () => {
-      if (synthRef.current) synthRef.current.cancel();
-    };
+    return () => { if (synthRef.current) synthRef.current.cancel(); };
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const cleanTextForSpeech = (text: string) => {
-    return text
-      .replace(/[*_#~`>|]/g, '')
-      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
-      .replace(/ {2,}/g, ' ')
-      .trim();
-  };
+  const cleanTextForSpeech = (text: string) =>
+    text.replace(/[*_#~`>|]/g, '').replace(/ {2,}/g, ' ').trim();
 
   const speakText = (text: string) => {
     if (!ttsEnabled || !synthRef.current) return;
@@ -123,29 +104,22 @@ export default function AIPage() {
 
   const toggleListening = () => {
     if (!recognitionRef.current) return;
-    if (isListening) {
-      recognitionRef.current.stop();
-    } else {
-      recognitionRef.current.start();
-    }
+    if (isListening) { recognitionRef.current.stop(); }
+    else { recognitionRef.current.start(); }
   };
 
   useEffect(() => {
     const fetchHistory = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      
       const res = await getChatHistory(session.user.id);
       if (res.data && res.data.length > 0) {
         const historyMsgs = res.data.map((m: any) => ({
-          id: m.id.toString(),
-          text: m.content,
-          isUser: m.role === 'user'
+          id: m.id.toString(), text: m.content, isUser: m.role === 'user'
         }));
-        
         setMessages(prev => {
           const existingIds = new Set(prev.map(msg => msg.id));
-          const uniqueHistory = historyMsgs.filter(msg => !existingIds.has(msg.id));
+          const uniqueHistory = historyMsgs.filter((msg: any) => !existingIds.has(msg.id));
           return [...prev, ...uniqueHistory];
         });
       }
@@ -158,19 +132,15 @@ export default function AIPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await logChatMessage(content, role, 'ai_tutor', session?.user.id);
       if (res.error) console.error("Server Action Failed:", res.error);
-    } catch (err) {
-      console.error("Failed to log chat:", err);
-    }
+    } catch (err) { console.error("Failed to log chat:", err); }
   };
 
   const handleSend = async (text: string = input) => {
     if (!text.trim()) return;
-
     const newMsg: Message = { id: Date.now().toString(), text, isUser: true };
     setMessages(prev => [...prev, newMsg]);
     setInput("");
     setIsTyping(true);
-
     logToSupabase(text, 'user');
 
     try {
@@ -179,20 +149,13 @@ export default function AIPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history: messages })
       });
-      
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-      
       const aiResponse = data.text || "Извините, я не смог сгенерировать ответ.";
-      
       setMessages(prev => [...prev, { id: Date.now().toString(), text: aiResponse, isUser: false }]);
       logToSupabase(aiResponse, 'assistant');
-      
-      // Auto-speak AI response
       speakText(aiResponse);
-
     } catch (err: any) {
-      console.error(err);
       const errorMsg = "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.";
       setMessages(prev => [...prev, { id: Date.now().toString(), text: errorMsg, isUser: false }]);
       speakText(errorMsg);
@@ -201,154 +164,308 @@ export default function AIPage() {
     }
   };
 
+  const suggestions = ['Объясни мне дроби', 'Что такое фотосинтез?', 'Помоги с алфавитом', 'Расскажи сказку'];
+
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      
-      {/* Avatar Video Overlay */}
+    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in slide-in-from-bottom-4 duration-500 relative">
+
+      {/* Sign Avatar overlay */}
       <div className="fixed top-24 right-8 z-30 w-64 group">
-        <SignAvatar 
-          currentWord={activeWord} 
-          className="shadow-2xl border-4 border-[var(--color-primary)]" 
-        />
+        <SignAvatar currentWord={activeWord} className="shadow-2xl" style={{ border: '2px solid rgba(124,58,237,0.5)', borderRadius: '20px' }} />
         {activeWord && (
-          <button 
+          <button
             onClick={() => setActiveWord(null)}
-            className="absolute -top-2 -right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-40 border border-white/20"
+            className="absolute -top-2 -right-2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-40"
+            style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}
           >
             <X size={14} />
           </button>
         )}
       </div>
 
-      {/* Header & Stats Banner */}
-      <div className="flex flex-col md:flex-row gap-6 mb-6 shrink-0">
-        <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 flex items-center justify-between shadow-sm">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row gap-4 mb-5 shrink-0">
+
+        {/* Title card */}
+        <div
+          className="flex-1 flex items-center justify-between p-5 rounded-2xl"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-[#F59E0B] to-[#D97706] rounded-xl flex items-center justify-center text-white shadow-lg">
-              <BrainCircuit size={28} />
+            <div
+              className="w-13 h-13 w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                boxShadow: '0 4px 16px rgba(245,158,11,0.4)',
+              }}
+            >
+              <BrainCircuit size={24} className="text-white" />
             </div>
             <div>
-              <h2 className="font-display text-xl font-bold">ИИ-Тьютор</h2>
-              <p className="text-sm text-[var(--text-secondary)]">Ваш персональный помощник</p>
+              <h2 className="font-display text-lg font-bold">ИИ-Тьютор</h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-xs text-[var(--text-muted)] font-medium">Онлайн · Готов помочь</p>
+              </div>
             </div>
           </div>
-          
+
           {gestureLibrary.length === 0 && (
-            <button 
+            <button
               onClick={handleSeed}
               disabled={isSeeding}
-              className="p-2 text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary)]/20 transition-colors flex items-center gap-2"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
+              style={{
+                background: 'rgba(124,58,237,0.1)',
+                border: '1px solid rgba(124,58,237,0.2)',
+                color: 'var(--color-primary-light)',
+              }}
             >
-              <RefreshCw size={14} className={isSeeding ? "animate-spin" : ""} />
+              <RefreshCw size={12} className={isSeeding ? "animate-spin" : ""} />
               {isSeeding ? "Синхронизация..." : "Синхронизировать базу"}
             </button>
           )}
         </div>
 
-        {/* Analytics Widget */}
-        <div className="flex-1 bg-gradient-to-r from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
-            <Sparkles className="text-[var(--color-primary-light)] animate-pulse" />
+        {/* Analytics widget */}
+        <div
+          className="flex-1 relative overflow-hidden rounded-2xl p-5 group"
+          style={{
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.1), rgba(6,182,212,0.06))',
+            border: '1px solid rgba(124,58,237,0.2)',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          <div
+            className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(167,139,250,0.35), transparent)' }}
+          />
+          <div className="absolute top-3 right-3 opacity-30 group-hover:opacity-80 transition-opacity duration-500">
+            <Sparkles size={18} className="text-[var(--color-primary-light)] animate-pulse" />
           </div>
+
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp size={18} className="text-[var(--color-primary-light)]" />
-            <h3 className="font-semibold text-sm uppercase tracking-wider text-[var(--color-primary-light)]">Анализ успеваемости</h3>
+            <TrendingUp size={15} className="text-[var(--color-primary-light)]" />
+            <h3 className="font-semibold text-xs uppercase tracking-widest text-[var(--color-primary-light)]">
+              Анализ успеваемости
+            </h3>
           </div>
-          
-          <div className="flex items-end gap-2 h-12">
-            {[40, 65, 45, 80, 55, 90, 75].map((height, i) => (
-              <div key={i} className="flex-1 bg-[var(--bg-card2)] rounded-t-sm relative group-hover:bg-[var(--color-primary)]/20 transition-colors">
-                <div 
-                  className="absolute bottom-0 w-full bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-secondary)] rounded-t-sm transition-all duration-1000 ease-out"
-                  style={{ height: `${height}%`, animationDelay: `${i * 100}ms` }}
+
+          <div className="flex items-end gap-1.5 h-11">
+            {[40, 65, 45, 80, 55, 90, 75].map((h, i) => (
+              <div key={i} className="flex-1 relative h-full" style={{ borderRadius: '4px 4px 0 0', overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
+                <div
+                  className="absolute bottom-0 w-full rounded-t transition-all duration-700"
+                  style={{
+                    height: `${h}%`,
+                    background: 'linear-gradient(180deg, var(--color-primary-light), var(--color-secondary))',
+                    animationDelay: `${i * 80}ms`,
+                    opacity: 0.8,
+                  }}
                 />
               </div>
             ))}
           </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-2 text-right font-medium">+15% продуктивности на этой неделе</p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-2 text-right font-medium">
+            +15% продуктивности на этой неделе
+          </p>
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl flex flex-col overflow-hidden shadow-sm">
-        
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+      {/* Chat area */}
+      <div
+        className="flex-1 flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '20px',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-4 max-w-[85%] ${msg.isUser ? 'ml-auto flex-row-reverse' : ''}`}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-sm
-                ${msg.isUser ? 'bg-[var(--surface)] border border-[var(--border-color)]' : 'bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white'}
-              `}>
+            <div key={msg.id} className={`flex gap-3 max-w-[85%] ${msg.isUser ? 'ml-auto flex-row-reverse' : ''}`}>
+
+              {/* Avatar */}
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-base"
+                style={msg.isUser ? {
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-color)',
+                } : {
+                  background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+                  boxShadow: '0 2px 12px rgba(124,58,237,0.4)',
+                }}
+              >
                 {msg.isUser ? '👤' : '🤖'}
               </div>
-              <div className={`p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm relative group
-                ${msg.isUser 
-                  ? 'bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tr-sm' 
-                  : 'bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 text-[var(--text-primary)] rounded-tl-sm'
-                }
-              `}>
+
+              {/* Bubble */}
+              <div
+                className="relative px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap group"
+                style={msg.isUser ? {
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '18px 4px 18px 18px',
+                  color: 'var(--text-primary)',
+                } : {
+                  background: 'linear-gradient(135deg, rgba(124,58,237,0.1), rgba(6,182,212,0.07))',
+                  border: '1px solid rgba(124,58,237,0.2)',
+                  borderRadius: '4px 18px 18px 18px',
+                  color: 'var(--text-primary)',
+                }}
+              >
                 {msg.text}
                 {!msg.isUser && (
-                  <button 
+                  <button
                     onClick={() => speakText(msg.text)}
-                    className="absolute -right-10 top-0 p-2 text-[var(--text-muted)] hover:text-[var(--color-primary)] opacity-0 group-hover:opacity-100 transition-all"
+                    className="absolute -right-9 top-1 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
+                    style={{
+                      background: 'var(--bg-card2)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-muted)',
+                    }}
+                    title="Озвучить"
                   >
-                    <MessageSquare size={16} />
+                    <Volume2 size={13} />
                   </button>
                 )}
               </div>
             </div>
           ))}
 
+          {/* Typing indicator */}
           {isTyping && (
-            <div className="flex gap-4 max-w-[85%]">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-sm bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white">
+            <div className="flex gap-3 max-w-[85%]">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+                  boxShadow: '0 2px 12px rgba(124,58,237,0.4)',
+                }}
+              >
                 🤖
               </div>
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/20 rounded-tl-sm flex items-center gap-1.5 h-[52px]">
-                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" />
-                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" style={{ animationDelay: '0.2s' }} />
-                <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-bounce" style={{ animationDelay: '0.4s' }} />
+              <div
+                className="px-5 py-4 flex items-center gap-1.5"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(124,58,237,0.1), rgba(6,182,212,0.07))',
+                  border: '1px solid rgba(124,58,237,0.2)',
+                  borderRadius: '4px 18px 18px 18px',
+                }}
+              >
+                {[0, 1, 2].map(i => (
+                  <div
+                    key={i}
+                    className="w-2 h-2 rounded-full bg-[var(--color-primary-light)] animate-bounce"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  />
+                ))}
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="p-4 bg-[var(--bg-card2)] border-t border-[var(--border-color)]">
-          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
-            {['Объясни мне дроби', 'Что такое фотосинтез?', 'Помоги с алфавитом', 'Расскажи сказку'].map((sug, i) => (
-              <button 
+        {/* Input area */}
+        <div
+          className="shrink-0 p-4"
+          style={{
+            borderTop: '1px solid var(--border-color)',
+            background: 'var(--bg-card2)',
+            borderRadius: '0 0 20px 20px',
+          }}
+        >
+          {/* Suggestions */}
+          <div className="flex gap-2 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none' }}>
+            {suggestions.map((sug, i) => (
+              <button
                 key={i}
                 onClick={() => handleSend(sug)}
-                className="whitespace-nowrap px-4 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--color-primary-light)] hover:border-[var(--color-primary-light)] transition-colors"
+                className="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 shrink-0"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-muted)',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(124,58,237,0.4)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--color-primary-light)';
+                  (e.currentTarget as HTMLElement).style.background = 'rgba(124,58,237,0.08)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-color)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                  (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)';
+                }}
               >
                 {sug}
               </button>
             ))}
           </div>
-          
+
+          {/* Input row */}
           <div className="flex gap-2">
-            <button 
+            {/* Mic button */}
+            <button
               onClick={toggleListening}
-              className={`p-3 border rounded-xl transition-all shrink-0 ${isListening ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-[var(--bg-card)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--color-primary-light)]'}`}
+              className="p-3 rounded-xl shrink-0 transition-all duration-200 active:scale-95"
+              style={isListening ? {
+                background: '#DC2626',
+                color: 'white',
+                border: '1px solid #F87171',
+                boxShadow: '0 0 16px rgba(220,38,38,0.4)',
+                animation: 'pulse 1.5s infinite',
+              } : {
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+              }}
             >
-              <Mic size={20} />
+              <Mic size={19} />
             </button>
-            <input 
+
+            {/* Text input */}
+            <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={isListening ? "Слушаю..." : "Задайте вопрос..."}
-              className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl px-4 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all placeholder:text-[var(--text-muted)]"
+              className="flex-1 px-4 py-3 rounded-xl outline-none text-sm transition-all duration-200"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+              onFocus={e => {
+                (e.target as HTMLElement).style.borderColor = 'rgba(124,58,237,0.5)';
+                (e.target as HTMLElement).style.boxShadow = '0 0 0 3px rgba(124,58,237,0.1)';
+              }}
+              onBlur={e => {
+                (e.target as HTMLElement).style.borderColor = 'var(--border-color)';
+                (e.target as HTMLElement).style.boxShadow = 'none';
+              }}
             />
-            <button 
+
+            {/* Send button */}
+            <button
               onClick={() => handleSend()}
               disabled={!input.trim()}
-              className="p-3 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] text-white rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0"
+              className="p-3 rounded-xl shrink-0 transition-all duration-200 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))',
+                color: 'white',
+                boxShadow: input.trim() ? '0 4px 16px rgba(124,58,237,0.4)' : 'none',
+              }}
             >
-              <Send size={20} />
+              <Send size={19} />
             </button>
           </div>
         </div>

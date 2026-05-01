@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getCourses, getUserProgress, getLessons } from "@/app/actions";
+import { getCourses, getUserProgress } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
+import { ArrowRight, Layers, Infinity as InfinityIcon, ShieldCheck } from "lucide-react";
 
 interface Course {
   id: string;
@@ -25,7 +26,7 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    
+
     const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -39,17 +40,13 @@ export default function Home() {
 
         if (coursesRes.error) throw new Error(coursesRes.error);
         if (!coursesRes.data) throw new Error("No data returned");
-        
-        const completedLessonIds = new Set((progressRes.data || []).map((p: any) => p.lesson_id));
 
-        // Simplify: just use the course data and progress without sub-fetching lessons in a loop
-        // to avoid hitting concurrent Server Action limits which causes "fetch failed"
         const mappedData = coursesRes.data.map((item: any) => {
           return {
             ...item,
             icon: item.category === 'для глухих' ? '🤟' : '📚',
-            iconBg: 'linear-gradient(135deg, #6C3AE8, #8B5CF6)',
-            progress: 0, // Default for now
+            iconBg: 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+            progress: 0,
             completed: 0,
             total: 0
           };
@@ -67,99 +64,166 @@ export default function Home() {
     fetchData();
   }, []);
 
+  const stats = [
+    { value: "4", label: "Модуля", icon: Layers },
+    { value: "100%", label: "Доступность", icon: ShieldCheck },
+    { value: "∞", label: "Возможности", icon: InfinityIcon },
+  ];
+
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+    <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 relative">
+
+      {/* Ambient background glows */}
+      <div
+        className="absolute top-0 right-0 w-96 h-96 pointer-events-none -z-0"
+        style={{
+          background: 'radial-gradient(ellipse at 80% 10%, rgba(124,58,237,0.12) 0%, transparent 65%)',
+        }}
+      />
+      <div
+        className="absolute top-32 left-1/3 w-72 h-72 pointer-events-none -z-0"
+        style={{
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(6,182,212,0.07) 0%, transparent 70%)',
+        }}
+      />
+
       {/* Hero Section */}
-      <div className="text-center py-6">
-        <div className="inline-block bg-gradient-to-r from-[rgba(108,58,232,0.3)] to-[rgba(6,182,212,0.3)] border border-[rgba(108,58,232,0.4)] px-4 py-1.5 rounded-full text-sm text-[var(--color-primary-light)] font-semibold tracking-wide mb-4">
-          🌟 Платформа доступности
-        </div>
-        <h2 className="font-display text-4xl md:text-5xl font-black mb-3">
-          Возможности<br className="md:hidden" />
-          <span className="bg-gradient-to-r from-[#E879F9] via-[#818CF8] to-[#06B6D4] text-transparent bg-clip-text ml-2">
-            без границ
+      <div className="text-center py-10 relative z-10">
+        <div className="flex justify-center mb-5">
+          <span className="hero-badge">
+            🌟 Платформа доступности
           </span>
+        </div>
+
+        <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-black mb-4 leading-[1.1] tracking-tight">
+          Возможности
+          <br />
+          <span className="gradient-text">без границ</span>
         </h2>
-        <p className="text-[var(--text-secondary)] text-lg max-w-md mx-auto">
-          Технологии на службе каждого человека — независимо от ограничений
+
+        <p className="text-[var(--text-secondary)] text-lg max-w-md mx-auto leading-relaxed">
+          Технологии на службе каждого человека —<br className="hidden md:block" />
+          <span className="text-[var(--text-muted)]">независимо от ограничений</span>
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="flex items-center justify-center bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
-        <div className="flex-1 text-center">
-          <span className="block font-display text-3xl md:text-4xl font-black bg-gradient-to-r from-[var(--color-primary-light)] to-[var(--color-secondary)] text-transparent bg-clip-text">4</span>
-          <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-bold mt-1 block">Модуля</span>
-        </div>
-        <div className="w-px h-12 bg-[var(--border-color)]"></div>
-        <div className="flex-1 text-center">
-          <span className="block font-display text-3xl md:text-4xl font-black bg-gradient-to-r from-[var(--color-primary-light)] to-[var(--color-secondary)] text-transparent bg-clip-text">100%</span>
-          <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-bold mt-1 block">Доступность</span>
-        </div>
-        <div className="w-px h-12 bg-[var(--border-color)]"></div>
-        <div className="flex-1 text-center">
-          <span className="block font-display text-3xl md:text-4xl font-black bg-gradient-to-r from-[var(--color-primary-light)] to-[var(--color-secondary)] text-transparent bg-clip-text">∞</span>
-          <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-bold mt-1 block">Возможности</span>
-        </div>
+      {/* Stats Row */}
+      <div
+        className="grid grid-cols-3 gap-px relative z-10 overflow-hidden"
+        style={{
+          background: 'var(--border-color)',
+          borderRadius: '20px',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        {stats.map(({ value, label, icon: Icon }, i) => (
+          <div
+            key={label}
+            className="stat-card flex flex-col items-center justify-center py-7 px-4 gap-2"
+            style={{ borderRadius: i === 0 ? '20px 0 0 20px' : i === 2 ? '0 20px 20px 0' : '0' }}
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center mb-1"
+              style={{
+                background: 'rgba(124,58,237,0.15)',
+                border: '1px solid rgba(124,58,237,0.25)',
+              }}
+            >
+              <Icon size={18} className="text-[var(--color-primary-light)]" />
+            </div>
+            <span className="font-display text-3xl md:text-4xl font-black gradient-text-primary">
+              {value}
+            </span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold">
+              {label}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Courses Grid */}
-      <div>
-        <h3 className="font-display text-2xl font-bold mb-4">Популярные курсы</h3>
-        
+      <div className="relative z-10">
+        <div className="section-title-line mb-6">
+          <h3 className="font-display text-2xl font-bold">Популярные курсы</h3>
+        </div>
+
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-12 h-12 border-4 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin mb-4"></div>
-            <p className="text-[var(--text-secondary)]">Загрузка курсов...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="h-48 skeleton rounded-2xl" style={{ animationDelay: `${i * 150}ms` }} />
+            ))}
           </div>
         ) : error ? (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-6 rounded-2xl text-center">
-            {error}
+          <div
+            className="p-6 rounded-2xl text-center"
+            style={{
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              color: 'rgb(252, 165, 165)',
+            }}
+          >
+            <p className="font-semibold">{error}</p>
           </div>
         ) : courses.length === 0 ? (
-          <div className="text-center py-12 text-[var(--text-muted)]">
-            <span className="text-4xl block mb-4">📭</span>
-            <p>Нет доступных курсов</p>
+          <div className="text-center py-16 text-[var(--text-muted)]">
+            <span className="text-5xl block mb-4 opacity-50">📭</span>
+            <p className="font-medium">Нет доступных курсов</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {courses.map((course, idx) => (
-              <Link 
+              <Link
                 href={`/courses/${course.id}`}
                 key={course.id}
-                className="block bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-[var(--color-primary)] hover:shadow-[0_8px_32px_rgba(108,58,232,0.2)] group"
-                style={{ animationDelay: `${idx * 100}ms` }}
+                className="card-premium block p-6 group"
+                style={{ animationDelay: `${idx * 80}ms` }}
               >
-                <div className="flex items-center gap-4 mb-4">
-                  <div 
-                    className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0 transition-transform duration-300 group-hover:scale-110"
-                    style={{ background: course.iconBg }}
+                {/* Top row */}
+                <div className="flex items-center gap-4 mb-5">
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+                    style={{
+                      background: course.iconBg,
+                      boxShadow: '0 4px 16px rgba(124,58,237,0.35)',
+                    }}
                   >
                     {course.icon}
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-display font-bold text-lg mb-1">{course.title}</h4>
-                    <span className="inline-block bg-[var(--color-primary)]/20 border border-[var(--color-primary)]/30 text-[var(--color-primary-light)] px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                      {course.category || "Основы"}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-display font-bold text-lg mb-1.5 truncate pr-2">
+                      {course.title}
+                    </h4>
+                    <span className="badge-primary">{course.category || "Основы"}</span>
+                  </div>
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 translate-x-2"
+                    style={{
+                      background: 'rgba(124,58,237,0.15)',
+                      border: '1px solid rgba(124,58,237,0.25)',
+                    }}
+                  >
+                    <ArrowRight size={16} className="text-[var(--color-primary-light)]" />
                   </div>
                 </div>
-                
-                <p className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2">
+
+                {/* Description */}
+                <p className="text-sm text-[var(--text-secondary)] mb-5 line-clamp-2 leading-relaxed">
                   {course.description}
                 </p>
-                
+
+                {/* Progress */}
                 <div className="space-y-2">
-                  <div className="h-2 w-full bg-[var(--bg-card2)] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] rounded-full transition-all duration-1000 ease-out"
+                  <div className="progress-bar-track">
+                    <div
+                      className="progress-bar-fill"
                       style={{ width: mounted ? `${course.progress}%` : "0%" }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)] group-hover:text-[var(--color-primary-light)] transition-colors">
-                    <span>{course.completed}/{course.total} уроков пройдено</span>
-                    <span>{course.progress}%</span>
+                  <div className="flex items-center justify-between text-xs font-semibold transition-colors duration-200">
+                    <span className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">
+                      {course.completed}/{course.total} уроков пройдено
+                    </span>
+                    <span className="text-[var(--color-primary-light)]">{course.progress}%</span>
                   </div>
                 </div>
               </Link>

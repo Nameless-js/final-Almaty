@@ -2,20 +2,20 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, Play } from "lucide-react";
+import { ArrowLeft, CheckCircle, Play, Circle } from "lucide-react";
 import { getLessons, completeLesson } from "@/app/actions";
 import { useAccessibility } from "@/components/AccessibilityProvider";
 import { supabase } from "@/lib/supabase";
 
 export default function LessonPage({ params }: { params: Promise<{ id: string, lessonId: string }> }) {
   const { id, lessonId } = use(params);
-  
+
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
-  
+
   const { ttsEnabled } = useAccessibility();
 
   useEffect(() => {
@@ -32,7 +32,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
           setCurrentLesson(lesson);
         }
 
-        // Check if already completed
         if (userId) {
           const { data } = await supabase
             .from('user_progress')
@@ -42,7 +41,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
             .single();
           if (data?.is_completed) setIsCompleted(true);
         }
-
       } catch (err) {
         console.error(err);
       } finally {
@@ -57,11 +55,8 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      
       const res = await completeLesson(session.user.id, lessonId);
-      if (res.success) {
-        setIsCompleted(true);
-      }
+      if (res.success) setIsCompleted(true);
     } catch (err) {
       console.error(err);
     } finally {
@@ -69,134 +64,253 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
     }
   };
 
+  const getEmbedUrl = (url: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    const videoId = (match && match[2].length === 11) ? match[2] : null;
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-10 h-10 border-4 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin"></div>
+      <div
+        className="w-12 h-12 rounded-full border-2 animate-spin"
+        style={{
+          borderColor: 'rgba(124,58,237,0.15)',
+          borderTopColor: 'var(--color-primary)',
+        }}
+      />
     </div>
   );
 
   if (!currentLesson) return (
-    <div className="text-center py-12">
-      <h2 className="text-2xl font-bold mb-4">Урок не найден</h2>
-      <Link href={`/courses/${id}`} className="text-[var(--color-primary-light)] underline">Вернуться к курсу</Link>
+    <div className="text-center py-16">
+      <div className="text-5xl mb-4">🔍</div>
+      <h2 className="text-2xl font-bold mb-4 text-[var(--text-primary)]">Урок не найден</h2>
+      <Link
+        href={`/courses/${id}`}
+        className="btn-primary inline-flex"
+      >
+        Вернуться к курсу
+      </Link>
     </div>
   );
 
-  // Simple YouTube ID extractor
-  const getEmbedUrl = (url: string) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    const id = (match && match[2].length === 11) ? match[2] : null;
-    return id ? `https://www.youtube.com/embed/${id}` : url;
-  };
-
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <Link href={`/courses/${id}`} className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--color-primary-light)] transition-colors font-semibold">
-          <ArrowLeft size={20} />
+    <div className="max-w-5xl mx-auto space-y-7 animate-in slide-in-from-bottom-4 duration-500">
+
+      {/* Top bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <Link
+          href={`/courses/${id}`}
+          className="inline-flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--color-primary-light)] transition-colors font-semibold text-sm group"
+        >
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 group-hover:bg-[rgba(124,58,237,0.15)]"
+            style={{ border: '1px solid var(--border-color)' }}
+          >
+            <ArrowLeft size={14} />
+          </div>
           Назад к списку уроков
         </Link>
-        <div className="flex items-center gap-3 bg-[var(--bg-card)] border border-[var(--border-color)] px-4 py-2 rounded-full shadow-sm">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Онлайн обучение</span>
+
+        <div
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Онлайн обучение</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Main Content */}
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-7">
+
+        {/* Content column */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] shadow-2xl relative group">
+
+          {/* Video player */}
+          <div
+            className="relative aspect-video rounded-3xl overflow-hidden"
+            style={{
+              background: '#000',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.1)',
+            }}
+          >
             {currentLesson.video_url ? (
-              <iframe 
-                src={getEmbedUrl(currentLesson.video_url) || ""} 
+              <iframe
+                src={getEmbedUrl(currentLesson.video_url) || ""}
                 className="w-full h-full"
                 allowFullScreen
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)] space-y-4">
-                <Play size={64} className="opacity-20" />
-                <p>Видеоматериал отсутствует</p>
+              <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.2)' }}
+                >
+                  <Play size={32} className="text-[var(--color-primary-light)] ml-1" />
+                </div>
+                <p className="text-[var(--text-muted)] text-sm">Видеоматериал отсутствует</p>
               </div>
             )}
           </div>
 
-          <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-8 shadow-sm">
-            <h1 className="font-display text-3xl font-bold mb-6">{currentLesson.title}</h1>
-            <div className="prose prose-invert max-w-none text-[var(--text-secondary)] leading-relaxed space-y-4">
+          {/* Lesson text card */}
+          <div
+            className="relative overflow-hidden rounded-3xl p-8"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            {/* Top highlight line */}
+            <div
+              className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(167,139,250,0.35), transparent)' }}
+            />
+
+            <h1 className="font-display text-3xl font-bold mb-6 text-[var(--text-primary)]">
+              {currentLesson.title}
+            </h1>
+
+            <div className="space-y-4 text-[var(--text-secondary)] leading-relaxed">
               {currentLesson.content.split('\n').map((para: string, i: number) => (
-                <p key={i}>{para}</p>
+                para.trim() ? <p key={i}>{para}</p> : <br key={i} />
               ))}
             </div>
 
-            <div className="mt-12 pt-8 border-t border-[var(--border-color)] flex flex-wrap gap-4 items-center justify-between">
+            {/* Footer: status + complete button */}
+            <div
+              className="mt-10 pt-6 flex flex-wrap gap-4 items-center justify-between"
+              style={{ borderTop: '1px solid var(--border-color)' }}
+            >
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-[var(--text-muted)]">Статус урока:</span>
+                <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Статус:</span>
                 {isCompleted ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-500 rounded-full text-xs font-bold border border-green-500/20">
-                    <CheckCircle size={14} /> ЗАВЕРШЕНО
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                    style={{
+                      background: 'rgba(52,211,153,0.1)',
+                      border: '1px solid rgba(52,211,153,0.25)',
+                      color: '#34D399',
+                    }}
+                  >
+                    <CheckCircle size={13} />
+                    ЗАВЕРШЕНО
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-card2)] text-[var(--text-muted)] rounded-full text-xs font-bold border border-[var(--border-color)]">
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                    style={{
+                      background: 'var(--bg-card2)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <Circle size={13} />
                     В ПРОЦЕССЕ
                   </span>
                 )}
               </div>
 
-              <button 
+              <button
                 onClick={handleComplete}
                 disabled={isCompleted || completing}
-                className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all shadow-lg active:scale-95
-                  ${isCompleted 
-                    ? 'bg-green-500/20 text-green-500 border border-green-500/30 cursor-default' 
-                    : 'bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] text-white hover:shadow-[0_0_30px_rgba(108,58,232,0.4)]'
-                  }
-                  ${completing ? 'opacity-50 cursor-wait' : ''}
-                `}
+                className="btn-primary"
+                style={isCompleted ? {
+                  background: 'rgba(52,211,153,0.1)',
+                  border: '1px solid rgba(52,211,153,0.25)',
+                  color: '#34D399',
+                  boxShadow: 'none',
+                  cursor: 'default',
+                } : completing ? { opacity: 0.6, cursor: 'wait' } : {}}
               >
-                {isCompleted ? "Урок завершен" : (completing ? "Загрузка..." : "Завершить урок")}
-                <CheckCircle size={20} />
+                {isCompleted
+                  ? <><CheckCircle size={18} /> Урок завершён</>
+                  : completing
+                    ? "Сохранение..."
+                    : <><CheckCircle size={18} /> Завершить урок</>
+                }
               </button>
             </div>
           </div>
         </div>
 
-        {/* Sidebar / Playlist */}
-        <div className="space-y-6">
-          <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-6 shadow-sm sticky top-24">
-            <h3 className="font-display font-bold text-xl mb-6 flex items-center gap-2">
-              <div className="w-1.5 h-6 bg-[var(--color-primary)] rounded-full" />
-              Содержание курса
-            </h3>
-            <div className="space-y-3">
-              {lessons.map((lesson, idx) => (
-                <Link 
-                  key={lesson.id}
-                  href={`/courses/${id}/${lesson.id}`}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border transition-all group
-                    ${lesson.id === lessonId 
-                      ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary-light)]' 
-                      : 'bg-[var(--bg-card2)] border-transparent hover:border-[var(--border-color)] text-[var(--text-secondary)]'
-                    }
-                  `}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm
-                    ${lesson.id === lessonId ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--bg-card)]'}
-                  `}>
-                    {lesson.order_index || idx + 1}
-                  </div>
-                  <span className="flex-1 text-sm font-semibold truncate">{lesson.title}</span>
-                </Link>
-              ))}
+        {/* Playlist sidebar */}
+        <div>
+          <div
+            className="sticky top-6 rounded-3xl overflow-hidden"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            {/* Sidebar header */}
+            <div
+              className="flex items-center gap-3 px-5 py-4"
+              style={{ borderBottom: '1px solid var(--border-color)' }}
+            >
+              <div
+                className="w-1.5 h-5 rounded-full"
+                style={{ background: 'linear-gradient(180deg, var(--color-primary-light), var(--color-primary))' }}
+              />
+              <h3 className="font-display font-bold text-base">Содержание курса</h3>
+            </div>
+
+            <div className="p-3 space-y-1 max-h-[60vh] overflow-y-auto">
+              {lessons.map((lesson, idx) => {
+                const isCurrent = lesson.id === lessonId;
+                return (
+                  <Link
+                    key={lesson.id}
+                    href={`/courses/${id}/${lesson.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group"
+                    style={{
+                      background: isCurrent ? 'rgba(124,58,237,0.12)' : 'transparent',
+                      border: `1px solid ${isCurrent ? 'rgba(124,58,237,0.3)' : 'transparent'}`,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isCurrent) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+                    }}
+                    onMouseLeave={e => {
+                      if (!isCurrent) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition-all duration-200"
+                      style={isCurrent ? {
+                        background: 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+                        color: 'white',
+                        boxShadow: '0 2px 8px rgba(124,58,237,0.4)',
+                      } : {
+                        background: 'var(--bg-card2)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      {lesson.order_index || idx + 1}
+                    </div>
+                    <span
+                      className="flex-1 text-sm font-semibold truncate transition-colors duration-200"
+                      style={{ color: isCurrent ? 'var(--color-primary-light)' : 'var(--text-secondary)' }}
+                    >
+                      {lesson.title}
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
 
       </div>
-
     </div>
   );
 }

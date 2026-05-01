@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { HandMetal, Camera, Book, Search, Video, X, Info, Hand } from "lucide-react";
+import { HandMetal, Camera, Book, Search, Video, X, Info, Hand, Download } from "lucide-react";
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
 import { getGesturesLibrary, seedGestures } from "@/app/actions";
 import SignAvatar from "@/components/SignAvatar";
@@ -263,60 +263,111 @@ export default function SignsPage() {
   }, [activeTab]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto pb-20">
-      <div className="text-center py-4">
-        <div className="inline-flex justify-center items-center w-20 h-20 bg-[var(--bg-card)] rounded-2xl mb-4 border border-[var(--border-color)] shadow-inner">
-          <span className="text-4xl animate-bounce-slow">🤟</span>
+    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto pb-20 relative">
+
+      {/* Ambient glow */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-56 pointer-events-none -z-0"
+        style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.1) 0%, transparent 70%)' }}
+      />
+
+      <div className="text-center pt-6 relative z-10">
+        <div className="flex justify-center mb-5">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.15))',
+              border: '1px solid rgba(124,58,237,0.3)',
+              boxShadow: '0 0 24px rgba(124,58,237,0.2)',
+            }}
+          >
+            <span className="text-3xl animate-bounce-slow">🤟</span>
+          </div>
         </div>
-        <h2 className="font-display text-3xl font-bold mb-2 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] bg-clip-text text-transparent">Жестовый язык</h2>
+        <h2 className="font-display text-3xl md:text-4xl font-black mb-2">
+          Жестовый <span className="gradient-text">язык</span>
+        </h2>
         <p className="text-[var(--text-secondary)]">Переводчик и обучение жестам в реальном времени</p>
       </div>
 
-      <div className="flex p-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl shadow-sm sticky top-4 z-10 backdrop-blur-md">
-        <button
-          onClick={() => { setActiveTab("dictionary"); stopCamera(); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all ${activeTab === "dictionary" ? "bg-[var(--color-primary)] text-white shadow-lg scale-105" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
-        >
-          <Book size={18} /> Словарь
-        </button>
-        <button
-          onClick={() => { setActiveTab("alphabet"); stopCamera(); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all ${activeTab === "alphabet" ? "bg-[var(--color-primary)] text-white shadow-lg scale-105" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
-        >
-          <HandMetal size={18} /> Алфавит
-        </button>
-        <button
-          onClick={() => setActiveTab("camera")}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all ${activeTab === "camera" ? "bg-[var(--color-primary)] text-white shadow-lg scale-105" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
-        >
-          <Camera size={18} /> Камера
-        </button>
+      {/* Tab switcher */}
+      <div
+        className="flex p-1 sticky top-4 z-10"
+        style={{
+          background: 'rgba(19,16,42,0.8)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '18px',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        {[
+          { id: 'dictionary' as Tab, label: 'Словарь', icon: Book, action: () => { setActiveTab('dictionary'); stopCamera(); } },
+          { id: 'alphabet' as Tab, label: 'Алфавит', icon: HandMetal, action: () => { setActiveTab('alphabet'); stopCamera(); } },
+          { id: 'camera' as Tab, label: 'Камера', icon: Camera, action: () => setActiveTab('camera') },
+        ].map(({ id, label, icon: Icon, action }) => (
+          <button
+            key={id}
+            onClick={action}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all duration-250"
+            style={activeTab === id ? {
+              background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))',
+              color: 'white',
+              boxShadow: '0 4px 16px rgba(124,58,237,0.45)',
+              transform: 'scale(1.03)',
+            } : {
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <Icon size={16} /> {label}
+          </button>
+        ))}
       </div>
 
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={20} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--text-muted)' }} />
         <input
           type="text"
           placeholder={activeTab === "alphabet" ? "Поиск буквы..." : "Поиск жеста..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 transition-all placeholder:text-[var(--text-muted)] shadow-sm"
+          className="w-full py-4 pl-12 pr-4 outline-none text-sm transition-all duration-200 placeholder:italic"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '16px',
+            color: 'var(--text-primary)',
+          }}
+          onFocus={e => {
+            (e.target as HTMLElement).style.borderColor = 'rgba(124,58,237,0.5)';
+            (e.target as HTMLElement).style.boxShadow = '0 0 0 3px rgba(124,58,237,0.1)';
+          }}
+          onBlur={e => {
+            (e.target as HTMLElement).style.borderColor = 'var(--border-color)';
+            (e.target as HTMLElement).style.boxShadow = 'none';
+          }}
         />
       </div>
 
       {activeTab === "dictionary" && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
           {filteredSigns.map((sign, idx) => (
-            <div 
+            <div
               key={idx}
               onClick={() => setSelectedSign(sign)}
-              className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--bg-card2)] hover:-translate-y-1.5 transition-all duration-300 group shadow-sm hover:shadow-md"
+              className="card-premium flex flex-col items-center justify-center text-center cursor-pointer p-6 group"
             >
-              <div className="w-16 h-16 bg-[var(--surface)] rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <span className="text-4xl">{sign.emoji}</span>
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.1))',
+                  border: '1px solid rgba(124,58,237,0.2)',
+                }}
+              >
+                <span className="text-3xl">{sign.emoji}</span>
               </div>
-              <span className="font-bold text-sm text-[var(--text-primary)]">{sign.word}</span>
-              <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mt-1">{sign.category}</span>
+              <span className="font-bold text-sm text-[var(--text-primary)] group-hover:text-[var(--color-primary-light)] transition-colors">{sign.word}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] mt-1 font-semibold">{sign.category}</span>
             </div>
           ))}
         </div>
@@ -324,28 +375,41 @@ export default function SignsPage() {
 
       {activeTab === "alphabet" && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          {/* Reference Image Section */}
-          <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-[2.5rem] p-8 shadow-xl overflow-hidden relative group">
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="flex-1 space-y-4">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-full text-xs font-bold uppercase tracking-wider">
-                  <Info size={14} /> Справочник
+            <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-[2.5rem] p-8 shadow-xl relative group overflow-hidden">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                  <div className="space-y-3 flex-1">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-full text-xs font-bold uppercase tracking-wider">
+                      <Info size={14} /> Справочник
+                    </div>
+                    <h3 className="text-2xl font-black text-[var(--text-primary)]">Общая таблица жестов</h3>
+                    <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl">
+                      Используйте эту таблицу как быструю шпаргалку для изучения русского дактильного алфавита. Каждая буква соответствует определенному положению кисти руки.
+                    </p>
+                  </div>
+                  <a 
+                    href="/images/alphabet/reference-wide.png" 
+                    download="daktil-alfavit.png"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[var(--bg-card2)] hover:bg-[var(--surface)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl font-bold text-sm transition-all shadow-sm hover:shadow-md hover:border-[var(--color-primary)]/50 active:scale-95 shrink-0"
+                  >
+                    <Download size={18} />
+                    Скачать
+                  </a>
                 </div>
-                <h3 className="text-2xl font-black text-[var(--text-primary)]">Общая таблица жестов</h3>
-                <p className="text-[var(--text-secondary)] leading-relaxed">
-                  Используйте эту таблицу как быструю шпаргалку для изучения русского дактильного алфавита. Каждая буква соответствует определенному положению кисти руки.
-                </p>
-              </div>
-              <div className="w-full md:w-2/3 aspect-[2/1] relative rounded-2xl overflow-hidden border-2 border-[var(--border-color)] bg-white group-hover:border-[var(--color-primary)]/30 transition-colors shadow-inner">
-                <Image 
-                  src="/images/alphabet/reference.png"
-                  alt="Таблица русского дактильного алфавита"
-                  fill
-                  className="object-contain p-2"
-                />
+                <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--border-color)] bg-[var(--surface)] transition-colors shadow-inner flex items-center justify-center p-2" style={{ aspectRatio: '770/349' }}>
+                  <div className="w-full h-full relative">
+                    <Image 
+                      src="/images/alphabet/reference-wide.png"
+                      alt="Таблица русского дактильного алфавита"
+                      fill
+                      className="object-contain p-2 drop-shadow-lg"
+                      style={{ filter: 'invert(1) contrast(1.1)', mixBlendMode: 'screen', opacity: 0.85 }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+
 
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {filteredAlphabet.map((item, idx) => (
@@ -357,17 +421,25 @@ export default function SignsPage() {
                 <div className="absolute top-2 left-2 z-10 text-xl font-black text-[var(--color-primary)] group-hover:scale-125 transition-transform">{item.letter}</div>
                 <div className="w-full h-full relative">
                   <Image 
-                    src={`/images/alphabet/${item.slug}.webp`}
+                    src={`/images/alphabet/${item.slug}.png`}
                     alt={`Жест для буквы ${item.letter}`}
                     fill
-                    className="object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                    className="object-contain p-3 group-hover:scale-110 transition-transform duration-500 z-10 drop-shadow-md"
+                    style={{ filter: 'invert(1) contrast(1.2)', mixBlendMode: 'screen', opacity: 0.9 }}
+                    onLoad={(e) => {
+                      const target = e.target as HTMLElement;
+                      const sibling = target.nextElementSibling as HTMLElement;
+                      if (sibling) sibling.style.display = 'none';
+                    }}
                     onError={(e) => {
                       const target = e.target as any;
                       target.style.display = 'none';
+                      const sibling = target.nextElementSibling as HTMLElement;
+                      if (sibling) sibling.style.display = 'flex';
                     }}
                   />
-                  <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--color-primary-light)]">
-                    <Hand size={32} />
+                  <div className="absolute inset-0 flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--color-primary-light)] z-0">
+                    <Hand size={32} className="opacity-20" />
                   </div>
                 </div>
               </div>
@@ -488,20 +560,28 @@ export default function SignsPage() {
               </div>
               
               <div className="relative z-0 flex flex-col items-center w-full px-8">
-                <div className="w-full aspect-video bg-white rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-4 border-white/50 relative overflow-hidden">
+                <div className="w-full aspect-video bg-[var(--bg-card)] rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-2 border-[var(--border-color)] relative overflow-hidden">
                   {selectedSign.isLetter ? (
-                    <div className="w-full h-full relative p-4">
+                    <div className="w-full h-full relative p-4 bg-[var(--surface)] border border-[var(--border-color)] rounded-xl">
                       <Image 
-                        src={`/images/alphabet/${selectedSign.slug}.webp`}
+                        src={`/images/alphabet/${selectedSign.slug}.png`}
                         alt={selectedSign.word}
                         fill
-                        className="object-contain"
+                        className="object-contain p-6 drop-shadow-xl z-10 relative"
+                        style={{ filter: 'invert(1) contrast(1.2)', mixBlendMode: 'screen', opacity: 0.9 }}
+                        onLoad={(e) => {
+                          const target = e.target as HTMLElement;
+                          const sibling = target.nextElementSibling as HTMLElement;
+                          if (sibling) sibling.style.display = 'none';
+                        }}
                         onError={(e) => {
                           const target = e.target as any;
                           target.style.display = 'none';
+                          const sibling = target.nextElementSibling as HTMLElement;
+                          if (sibling) sibling.style.display = 'flex';
                         }}
                       />
-                      <span className="absolute inset-0 flex items-center justify-center text-5xl font-black text-[var(--color-primary)] opacity-20">{selectedSign.word.split(' ')[1]}</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-[120px] font-black text-[var(--color-primary)] opacity-10 z-0">{selectedSign.word.split(' ')[1]}</span>
                     </div>
                   ) : (
                     <SignAvatar 
@@ -536,7 +616,7 @@ export default function SignsPage() {
                 
                 <button
                   onClick={() => setSelectedSign(null)}
-                  className="w-full py-4 bg-[var(--color-primary)] text-white font-bold rounded-2xl hover:bg-[var(--color-primary-dark)] transition-colors shadow-lg"
+                  className="btn-primary w-full py-4 justify-center"
                 >
                   Понятно
                 </button>

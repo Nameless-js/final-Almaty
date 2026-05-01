@@ -115,8 +115,38 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
 
   if (!sessionLoaded && pathname !== '/login') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-        <div className="w-12 h-12 border-4 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6" style={{ background: 'var(--bg)' }}>
+        <div className="relative">
+          {/* Outer glow ring */}
+          <div
+            className="absolute -inset-4 rounded-full opacity-40"
+            style={{
+              background: 'radial-gradient(ellipse, rgba(124,58,237,0.3) 0%, transparent 70%)',
+              animation: 'pulse 2s ease-in-out infinite',
+            }}
+          />
+          {/* Logo */}
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center relative z-10"
+            style={{
+              background: 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+              boxShadow: '0 8px 32px rgba(124,58,237,0.5)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2Z" fill="white" stroke="white" strokeWidth="1" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        {/* Spinner */}
+        <div
+          className="w-6 h-6 rounded-full"
+          style={{
+            border: '2px solid rgba(124,58,237,0.15)',
+            borderTopColor: 'var(--color-primary)',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
       </div>
     );
   }
