@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { HandMetal, Camera, Book, Search, Video, X, Info, Hand, Download } from "lucide-react";
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
-import { getGesturesLibrary, seedGestures } from "@/app/actions";
+import { getGesturesLibrary, seedGestures, saveGesturePattern } from "@/app/actions";
 import SignAvatar from "@/components/SignAvatar";
 
 // MediaPipe types (simplified for usage)
@@ -29,6 +29,38 @@ export default function SignsPage() {
   const handsRef = useRef<any>(null);
   const requestRef = useRef<number | null>(null);
   const cameraActiveRef = useRef(false);
+  const libraryRef = useRef<any[]>([]);
+  const handsModuleRef = useRef<any>(null);
+  const drawingModuleRef = useRef<any>(null);
+  const lastLandmarksRef = useRef<any>(null);
+  
+  const [isRecording, setIsRecording] = useState(false);
+  const [newGestureName, setNewGestureName] = useState("");
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const loadLibrary = async () => {
+    const res = await getGesturesLibrary();
+    if (res.data) {
+      setGesturesLibrary(res.data);
+      libraryRef.current = res.data;
+    }
+  };
+
+  const handleSavePattern = async () => {
+    if (!lastLandmarksRef.current || !newGestureName) return;
+    setSaveStatus("Сохранение...");
+    const res = await saveGesturePattern(newGestureName, lastLandmarksRef.current);
+    if (res.success) {
+      setSaveStatus("Сохранено!");
+      setNewGestureName("");
+      setIsRecording(false);
+      loadLibrary(); // Reload
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus(`Ошибка: ${res.error || 'Неизвестно'}`);
+      setTimeout(() => setSaveStatus(null), 5000);
+    }
+  };
 
   const filteredSigns = SIGNS_DATA.filter(s => 
     s.word.toLowerCase().includes(search.toLowerCase()) || 
@@ -87,7 +119,9 @@ export default function SignsPage() {
 
   const startDetectionLoop = () => {
     const process = async () => {
-      if (videoRef.current && handsRef.current && cameraActiveRef.current) {
+      if (!cameraActiveRef.current) return;
+
+      if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
         try {
           await handsRef.current.send({ image: videoRef.current });
         } catch (e) {
@@ -153,17 +187,26 @@ export default function SignsPage() {
       setIsHandDetected(true);
       
       const landmarks = results.multiHandLandmarks[0];
+      lastLandmarksRef.current = landmarks;
       
       // 1. Library-based recognition
       let bestMatch = null;
       let minDistance = 0.15; // Threshold for a good match
 
-      for (const gesture of gesturesLibrary) {
+      for (const gesture of libraryRef.current) {
         if (gesture.pattern_json) {
-          const dist = compareGestures(landmarks, gesture.pattern_json);
-          if (dist < minDistance) {
-            minDistance = dist;
-            bestMatch = gesture.word;
+          try {
+            const pattern = typeof gesture.pattern_json === 'string' 
+              ? JSON.parse(gesture.pattern_json) 
+              : gesture.pattern_json;
+              
+            const dist = compareGestures(landmarks, pattern);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestMatch = gesture.word;
+            }
+          } catch (e) {
+            console.warn("Gesture parse error", e);
           }
         }
       }
@@ -186,23 +229,22 @@ export default function SignsPage() {
 
       setDetectedLetter(letter);
 
-      Promise.all([
-        import("@mediapipe/drawing_utils"),
-        import("@mediapipe/hands")
-      ]).then(([drawingUtils, hands]) => {
+      if (drawingModuleRef.current && handsModuleRef.current) {
+        const drawing = drawingModuleRef.current;
+        const hands = handsModuleRef.current;
         const connections = hands.HAND_CONNECTIONS || [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
         for (const handLandmarks of results.multiHandLandmarks) {
-          drawingUtils.drawConnectors(canvasCtx, handLandmarks, connections, {
+          drawing.drawConnectors(canvasCtx, handLandmarks, connections, {
             color: "#6C3AE8",
             lineWidth: 5,
           });
-          drawingUtils.drawLandmarks(canvasCtx, handLandmarks, {
+          drawing.drawLandmarks(canvasCtx, handLandmarks, {
             color: "#FFFFFF",
             lineWidth: 2,
             radius: 4,
           });
         }
-      });
+      }
     } else {
       setIsHandDetected(false);
       setDetectedLetter(null);
@@ -210,22 +252,31 @@ export default function SignsPage() {
     canvasCtx.restore();
   };
 
+  const isInitializingHands = useRef(false);
+
   // Initialize MediaPipe Hands once
   useEffect(() => {
-    const loadLibrary = async () => {
-      const res = await getGesturesLibrary();
-      if (res.data) setGesturesLibrary(res.data);
-    };
     loadLibrary();
 
+    if (handsRef.current || isInitializingHands.current) return;
+
     const initHands = async () => {
+      isInitializingHands.current = true;
       try {
-        const { Hands } = await import("@mediapipe/hands");
-        const hands = new Hands({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        const handsModule = await import("@mediapipe/hands");
+        const drawingModule = await import("@mediapipe/drawing_utils");
+        
+        handsModuleRef.current = handsModule;
+        drawingModuleRef.current = drawingModule;
+
+        // Handle different export patterns (ESM vs CJS)
+        const HandsClass = handsModule.Hands || (handsModule as any).default?.Hands || handsModule;
+        
+        const hands = new HandsClass({
+          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
         });
 
-        hands.setOptions({
+        await hands.setOptions({
           maxNumHands: 1,
           modelComplexity: 1,
           minDetectionConfidence: 0.5,
@@ -239,6 +290,8 @@ export default function SignsPage() {
       } catch (error) {
         console.error("Failed to initialize MediaPipe", error);
         setCameraError("Не удалось загрузить ИИ-модель. Попробуйте обновить страницу.");
+      } finally {
+        isInitializingHands.current = false;
       }
     };
 
@@ -246,6 +299,12 @@ export default function SignsPage() {
 
     return () => {
       stopCamera();
+      if (handsRef.current) {
+        try {
+          handsRef.current.close();
+        } catch (e) {}
+        handsRef.current = null;
+      }
     };
   }, []);
 
@@ -539,6 +598,43 @@ export default function SignsPage() {
             {isCameraActive ? <X size={24} /> : <Camera size={24} />}
             {isCameraActive ? "Выключить камеру" : "Запустить камеру"}
           </button>
+
+          {isCameraActive && isHandsReady && (
+            <div className="w-full max-w-2xl bg-[var(--bg-card)] border border-[var(--border-color)] rounded-[2rem] p-6 space-y-4 animate-in slide-in-from-top-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold">Режим обучения</h4>
+                  <p className="text-xs text-[var(--text-muted)]">Добавьте свой жест в глобальную базу</p>
+                </div>
+                <button 
+                  onClick={() => setIsRecording(!isRecording)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${isRecording ? 'bg-red-500 text-white' : 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20'}`}
+                >
+                  {isRecording ? "Отмена" : "Записать жест"}
+                </button>
+              </div>
+
+              {isRecording && (
+                <div className="space-y-3 pt-2">
+                  <input 
+                    type="text" 
+                    placeholder="Название жеста (напр. Мама)" 
+                    value={newGestureName}
+                    onChange={(e) => setNewGestureName(e.target.value)}
+                    className="w-full px-4 py-3 bg-[var(--surface)] border border-[var(--border-color)] rounded-xl outline-none focus:border-[var(--color-primary)] transition-all"
+                  />
+                  <button 
+                    disabled={!newGestureName || !isHandDetected}
+                    onClick={handleSavePattern}
+                    className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50 disabled:grayscale transition-all hover:shadow-lg hover:shadow-green-500/20 active:scale-95"
+                  >
+                    {saveStatus || "Сохранить образец"}
+                  </button>
+                  {!isHandDetected && <p className="text-[10px] text-red-400 text-center">Нужно, чтобы рука была в кадре</p>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

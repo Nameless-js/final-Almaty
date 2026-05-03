@@ -3,10 +3,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const supabaseUrl = 'https://jtubizlrigutrhwcdmqd.supabase.co';
-const supabaseKey = 'sb_secret_cm8cHWAy5Nk3IDyY5HJ35g_eqj3e4tO';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jtubizlrigutrhwcdmqd.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_secret_cm8cHWAy5Nk3IDyY5HJ35g_eqj3e4tO';
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl.replace(/\/rest\/v1\/?$/, ''), supabaseKey);
 
 export async function getCourses() {
   try {
@@ -148,7 +148,7 @@ export async function getLastStudiedLesson(userId: string) {
       .limit(1)
       .single();
       
-    if (error && error.includes('JSON object')) return { data: null }; // No data found
+    if (error && error.message?.includes('JSON object')) return { data: null }; // No data found
     if (error) return { error: error.message };
     return { data };
   } catch (err: any) {
@@ -166,7 +166,7 @@ export async function getGesturesLibrary() {
 }
 
 export async function seedGestures() {
-  const apiKey = process.env.GEMINI_KEY;
+  const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) return { error: "GEMINI_KEY is not defined in environment variables" };
   
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -199,14 +199,12 @@ export async function seedGestures() {
     // RU version
     entries.push({
       word: item.ru.toLowerCase(),
-      language: 'ru',
       category: item.cat,
       video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/ru/${item.ru.toLowerCase()}.mp4`,
     });
     // KK version
     entries.push({
       word: item.kk.toLowerCase(),
-      language: 'kk',
       category: item.cat,
       video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/kk/${item.kk.toLowerCase()}.mp4`,
     });
@@ -216,18 +214,50 @@ export async function seedGestures() {
   for (const item of kazakhDactyl) {
     entries.push({
       word: item.letter,
-      language: 'kk',
       category: 'Алфавит',
       video_url: `https://qabilet-storage.s3.amazonaws.com/gestures/kk/dactyl/${item.slug}.mp4`,
     });
   }
 
   try {
-    const { error } = await supabase.from('gestures_library').upsert(entries, { onConflict: 'word,language' });
+    const { error } = await supabase.from('gestures_library').upsert(entries, { onConflict: 'word' });
     if (error) throw error;
     return { success: true, count: entries.length };
   } catch (err: any) {
     console.error("Seeding error:", err);
     return { error: err.message };
+  }
+}
+
+export async function saveGesturePattern(word: string, pattern: any) {
+  try {
+    console.log("Attempting to save gesture:", word);
+    
+    // Normalize pattern - ensure it's a clean array of coordinates
+    const cleanPattern = Array.isArray(pattern) ? pattern.map(p => ({
+      x: p.x,
+      y: p.y,
+      z: p.z || 0
+    })) : pattern;
+
+    const { data, error } = await supabase
+      .from('gestures_library')
+      .upsert({ 
+        word: word.toLowerCase(), 
+        pattern_json: JSON.stringify(cleanPattern),
+        category: 'Пользовательские'
+      }, { onConflict: 'word' })
+      .select();
+
+    if (error) {
+      console.error("Supabase Save Error:", error);
+      return { error: error.message };
+    }
+    
+    console.log("Gesture saved successfully:", data);
+    return { success: true };
+  } catch (err: any) {
+    console.error("Critical Save Error:", err);
+    return { error: err.message || "Unknown error" };
   }
 }

@@ -3,13 +3,14 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mic, HandMetal, BrainCircuit, Menu, X, BookOpen, Zap } from "lucide-react";
+import { Home, Mic, HandMetal, BrainCircuit, Menu, X, BookOpen, Zap, Video } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/learn", label: "Обучение", icon: BookOpen },
   { href: "/voice", label: "Помощник", icon: Mic },
   { href: "/signs", label: "Жесты", icon: HandMetal },
+  { href: "/call", label: "Звонок", icon: Video },
   { href: "/ai", label: "ИИ-Тьютор", icon: BrainCircuit },
 ];
 

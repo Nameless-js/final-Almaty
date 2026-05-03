@@ -156,7 +156,7 @@ export default function AIPage() {
       logToSupabase(aiResponse, 'assistant');
       speakText(aiResponse);
     } catch (err: any) {
-      const errorMsg = "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.";
+      const errorMsg = `Ошибка ИИ: ${err.message || "Неизвестная ошибка"}. Попробуйте еще раз.`;
       setMessages(prev => [...prev, { id: Date.now().toString(), text: errorMsg, isUser: false }]);
       speakText(errorMsg);
     } finally {

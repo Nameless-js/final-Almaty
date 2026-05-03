@@ -13,11 +13,20 @@
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/hands": "^0.4.1675469240",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "@supabase/supabase-js": "^2.105.1",
+    "@types/three": "^0.184.0",
+    "buffer": "^6.0.3",
     "lucide-react": "^1.12.0",
     "next": "16.2.4",
+    "peerjs": "^1.5.5",
+    "process": "^0.11.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "simple-peer": "^9.11.1",
+    "socket.io-client": "^4.8.3",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

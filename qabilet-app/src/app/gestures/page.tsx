@@ -1,11 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Camera } from "@mediapipe/camera_utils";
-import { Hands, Results } from "@mediapipe/hands";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
-import { HAND_CONNECTIONS } from "@mediapipe/hands";
-import { Video, Info, Hand, AlertCircle } from "lucide-react";
+import { Video, Info, Hand, AlertCircle, Sparkles } from "lucide-react";
+import { getGesturesLibrary } from "@/app/actions";
 
 export default function GesturesPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -13,77 +10,182 @@ export default function GesturesPage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [status, setStatus] = useState("Инициализация камеры...");
   const [handDetected, setHandDetected] = useState(false);
+  const [gesturesLibrary, setGesturesLibrary] = useState<any[]>([]);
+  const [recognizedWord, setRecognizedWord] = useState<string | null>(null);
+  const [detectedLetter, setDetectedLetter] = useState<string | null>(null);
+
+  const libraryRef = useRef<any[]>([]);
+  const lastLandmarksRef = useRef<any>(null);
+  const normalizeLandmarks = (landmarks: any[]) => {
+    if (!landmarks || landmarks.length === 0) return [];
+    const base = landmarks[0];
+    const scale = Math.sqrt(
+      Math.pow(landmarks[5].x - landmarks[0].x, 2) + 
+      Math.pow(landmarks[5].y - landmarks[0].y, 2)
+    ) || 1;
+
+    return landmarks.map(p => ({
+      x: (p.x - base.x) / scale,
+      y: (p.y - base.y) / scale
+    }));
+  };
+
+  const compareGestures = (detected: any[], pattern: any[]) => {
+    if (!detected || !pattern || detected.length !== pattern.length) return 100;
+    const normDetected = normalizeLandmarks(detected);
+    const normPattern = normalizeLandmarks(pattern);
+
+    let dist = 0;
+    for (let i = 0; i < normDetected.length; i++) {
+      dist += Math.sqrt(
+        Math.pow(normDetected[i].x - normPattern[i].x, 2) + 
+        Math.pow(normDetected[i].y - normPattern[i].y, 2)
+      );
+    }
+    return dist / normDetected.length;
+  };
 
   useEffect(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-    });
+    let camera: any = null;
+    let hands: any = null;
 
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    hands.onResults((results: Results) => {
-      const canvasCtx = canvasRef.current!.getContext("2d")!;
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      
-      // Draw video frame to canvas first (optional, but good for mirror effect)
-      canvasCtx.drawImage(results.image, 0, 0, canvasRef.current!.width, canvasRef.current!.height);
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        setHandDetected(true);
-        setStatus("Рука обнаружена. Анализирую жест...");
-        
-        for (const landmarks of results.multiHandLandmarks) {
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-            color: "#8B5CF6",
-            lineWidth: 4,
-          });
-          drawLandmarks(canvasCtx, landmarks, {
-            color: "#E879F9",
-            lineWidth: 1,
-            radius: 4,
-          });
-        }
-      } else {
-        setHandDetected(false);
-        setStatus("Камера не видит рук");
+    const loadLibrary = async () => {
+      const res = await getGesturesLibrary();
+      if (res.data) {
+        setGesturesLibrary(res.data);
+        libraryRef.current = res.data;
       }
-      canvasCtx.restore();
-    });
+    };
+    loadLibrary();
 
-    const camera = new Camera(videoRef.current, {
-      onFrame: async () => {
-        await hands.send({ image: videoRef.current! });
-      },
-      width: 640,
-      height: 480,
-    });
+    const initMediaPipe = async () => {
+      try {
+        // Dynamic imports to avoid SSR issues and satisfy Turbopack
+        const handsModule = await import("@mediapipe/hands");
+        const cameraModule = await import("@mediapipe/camera_utils");
+        const drawingModule = await import("@mediapipe/drawing_utils");
 
-    camera.start().then(() => {
-      setIsCameraActive(true);
-      setStatus("Камера активна. Покажите руку.");
-    }).catch(err => {
-      console.error(err);
-      setStatus("Ошибка доступа к камере");
-    });
+        // Handle different export patterns
+        const HandsClass = handsModule.Hands || (handsModule as any).default?.Hands || handsModule;
+        const CameraClass = cameraModule.Camera || (cameraModule as any).default?.Camera || cameraModule;
+        const HAND_CONNECTIONS = handsModule.HAND_CONNECTIONS || (handsModule as any).default?.HAND_CONNECTIONS;
+
+        hands = new HandsClass({
+          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        });
+
+        hands.setOptions({
+          maxNumHands: 2,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+
+        hands.onResults((results: any) => {
+          if (!canvasRef.current) return;
+          const canvasCtx = canvasRef.current.getContext("2d")!;
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          
+          // Draw video frame to canvas
+          canvasCtx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height);
+
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            setHandDetected(true);
+            const landmarks = results.multiHandLandmarks[0];
+            lastLandmarksRef.current = landmarks;
+            
+            // Recognition Logic
+            let bestMatch = null;
+            let minDistance = 0.22; // More forgiving threshold
+
+            for (const gesture of libraryRef.current) {
+              if (gesture.pattern_json) {
+                try {
+                  const pattern = typeof gesture.pattern_json === 'string' 
+                    ? JSON.parse(gesture.pattern_json) 
+                    : gesture.pattern_json;
+                  const dist = compareGestures(landmarks, pattern);
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    bestMatch = gesture.word;
+                  }
+                } catch (e) {}
+              }
+            }
+            setRecognizedWord(bestMatch);
+
+            // Heuristic for letters
+            const isFingerExtended = (tip: number, pip: number) => landmarks[tip].y < landmarks[pip].y;
+            const indexExtended = isFingerExtended(8, 6);
+            const middleExtended = isFingerExtended(12, 10);
+            const ringExtended = isFingerExtended(16, 14);
+            const pinkyExtended = isFingerExtended(20, 18);
+
+            let letter = null;
+            if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) letter = 'А';
+            else if (indexExtended && middleExtended && ringExtended && pinkyExtended) letter = 'В';
+            else if (!indexExtended && !middleExtended && !ringExtended && pinkyExtended) letter = 'И';
+            else if (indexExtended && !middleExtended && !ringExtended && pinkyExtended) letter = 'У';
+            setDetectedLetter(letter);
+
+            if (bestMatch || letter) {
+              setStatus(`Распознано: ${bestMatch || letter}`);
+            } else {
+              setStatus("Анализирую жест...");
+            }
+            
+            for (const handLandmarks of results.multiHandLandmarks) {
+              drawingModule.drawConnectors(canvasCtx, handLandmarks, HAND_CONNECTIONS, {
+                color: "#8B5CF6",
+                lineWidth: 4,
+              });
+              drawingModule.drawLandmarks(canvasCtx, handLandmarks, {
+                color: "#E879F9",
+                lineWidth: 1,
+                radius: 4,
+              });
+            }
+          } else {
+            setHandDetected(false);
+            setRecognizedWord(null);
+            setDetectedLetter(null);
+            setStatus("Камера не видит рук");
+          }
+          canvasCtx.restore();
+        });
+
+        camera = new CameraClass(videoRef.current, {
+          onFrame: async () => {
+            if (hands && videoRef.current) {
+              await hands.send({ image: videoRef.current });
+            }
+          },
+          width: 640,
+          height: 480,
+        });
+
+        await camera.start();
+        setIsCameraActive(true);
+        setStatus("Камера активна. Покажите руку.");
+      } catch (err) {
+        console.error("MediaPipe initialization error:", err);
+        setStatus("Ошибка доступа к камере или ИИ");
+      }
+    };
+
+    initMediaPipe();
 
     return () => {
-      camera.stop();
-      hands.close();
+      if (camera) camera.stop();
+      if (hands) hands.close();
     };
   }, []);
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto relative">
-
-      {/* Ambient glow */}
       <div
         className="absolute top-0 right-0 w-80 h-64 pointer-events-none -z-0"
         style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(124,58,237,0.1) 0%, transparent 70%)' }}
@@ -121,8 +223,6 @@ export default function GesturesPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Camera Feed */}
         <div
           className="lg:col-span-2 relative aspect-video rounded-3xl overflow-hidden"
           style={{
@@ -161,7 +261,6 @@ export default function GesturesPage() {
           </div>
         </div>
 
-        {/* Info & Results */}
         <div className="space-y-5">
           <div
             className="relative overflow-hidden rounded-3xl p-6"
@@ -237,8 +336,38 @@ export default function GesturesPage() {
               <p>Разрешите браузеру доступ к камере, чтобы запустить переводчик.</p>
             </div>
           )}
-        </div>
 
+          {/* Library Info */}
+          <div className="card-premium p-5 border border-[var(--border-color)] bg-[var(--bg-card)]/50 backdrop-blur-md">
+             <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">База знаний ИИ</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold border border-emerald-500/20">Активна</span>
+             </div>
+             <div className="flex items-center gap-3">
+                <div className="text-2xl font-black text-[var(--color-primary-light)]">{gesturesLibrary.length}</div>
+                <div className="text-[10px] text-[var(--text-secondary)] leading-tight">
+                   Жестов загружено из глобальной библиотеки.<br/>ИИ готов к распознаванию.
+                </div>
+             </div>
+          </div>
+
+          {/* Results Display */}
+          {(recognizedWord || detectedLetter) && (
+            <div className="card-premium p-6 border-2 border-[var(--color-primary)] bg-[var(--color-primary)]/5 animate-in zoom-in-95 duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-[var(--color-primary-light)]" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Результат ИИ</span>
+                </div>
+                <div className="px-2 py-1 bg-[var(--color-primary)] text-white text-[10px] font-bold rounded-md">LIVE</div>
+              </div>
+              <div className="flex flex-col items-center justify-center py-4">
+                <span className="text-5xl font-black gradient-text mb-2">{recognizedWord || detectedLetter}</span>
+                <p className="text-xs text-[var(--text-secondary)] font-semibold tracking-wide">Распознано в реальном времени</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <style jsx>{`

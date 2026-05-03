@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY || '');
+const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.error("CRITICAL: GEMINI_KEY or GEMINI_API_KEY is not defined in environment variables.");
+}
+const genAI = new GoogleGenerativeAI(apiKey || '');
 
 const SYSTEM_PROMPT = `Ты — инклюзивный голосовой помощник платформы Qabilet. 
 ВАЖНО: Твои ответы будут озвучиваться голосом. 
