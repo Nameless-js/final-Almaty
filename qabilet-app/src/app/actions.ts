@@ -261,3 +261,86 @@ export async function saveGesturePattern(word: string, pattern: any) {
     return { error: err.message || "Unknown error" };
   }
 }
+
+export async function publishUserCourse(title: string, description: string, targetAudience: string, videoUrl: string) {
+  try {
+    const category = `Авторский: ${targetAudience}`;
+    // Create course
+    const { data: courseData, error: courseError } = await supabase
+      .from('courses')
+      .insert({
+        title,
+        description,
+        category,
+        image_url: '/images/bg-abstract.jpg' // default thumbnail
+      })
+      .select()
+      .single();
+
+    if (courseError) throw courseError;
+
+    // Create lesson
+    const { error: lessonError } = await supabase
+      .from('lessons')
+      .insert({
+        course_id: courseData.id,
+        title: 'Урок 1: Видеоматериал',
+        content: description,
+        video_url: videoUrl,
+        order_index: 1
+      });
+
+    if (lessonError) throw lessonError;
+
+    return { success: true, course: courseData };
+  } catch (err: any) {
+    console.error("publishUserCourse error:", err);
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function getCommunityCourses() {
+  try {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*, lessons(video_url)')
+      .ilike('category', 'Авторский:%')
+      .order('created_at', { ascending: false });
+      
+    if (error) return { error: error.message };
+    return { data };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function uploadCourseVideo(formData: FormData) {
+  try {
+    const file = formData.get('file') as File;
+    if (!file) return { error: "No file provided" };
+
+    const fileExt = file.name.split('.').pop() || 'mp4';
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `user_courses/${fileName}`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const { error: uploadError } = await supabase.storage
+      .from('user_courses')
+      .upload(filePath, buffer, {
+        contentType: file.type,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('user_courses')
+      .getPublicUrl(filePath);
+
+    return { success: true, url: publicUrlData.publicUrl };
+  } catch (err: any) {
+    console.error("uploadCourseVideo error:", err);
+    return { error: err.message || "Unknown error" };
+  }
+}

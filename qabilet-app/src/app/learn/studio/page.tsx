@@ -4,6 +4,8 @@ import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, Video, Play, Plus, X, FileVideo, CheckCircle2, AlertCircle } from "lucide-react";
 import Image from "next/image";
+import { supabase } from "@/lib/supabase";
+import { publishUserCourse, getCommunityCourses, uploadCourseVideo } from "@/app/actions";
 
 interface CourseUpload {
   id: string;
@@ -15,27 +17,37 @@ interface CourseUpload {
 }
 
 export default function CreatorStudioPage() {
-  const [courses, setCourses] = useState<CourseUpload[]>([
-    {
-      id: "demo-1",
-      title: "Основы жестового языка: Введение",
-      description: "Мой первый авторский курс для начинающих.",
-      status: "published",
-      date: "01.05.2026",
-      thumbnail: "/images/bg-abstract.jpg" // using existing abstract bg as mock thumbnail
-    }
-  ]);
-  
+  const [courses, setCourses] = useState<CourseUpload[]>([]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "success">("idle");
   const [progress, setProgress] = useState(0);
-  
+
   // Form State
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [targetAudience, setTargetAudience] = useState("Для глухих");
   const [file, setFile] = useState<File | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    const fetchCourses = async () => {
+      const res = await getCommunityCourses();
+      if (res.data) {
+        const formatted = res.data.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          status: "published" as const,
+          date: new Date(c.created_at).toLocaleDateString('ru-RU'),
+          thumbnail: c.image_url || "/images/bg-abstract.jpg"
+        }));
+        setCourses(formatted);
+      }
+    };
+    fetchCourses();
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -48,51 +60,66 @@ export default function CreatorStudioPage() {
     }
   };
 
-  const simulateUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !file) return;
+    if (!title || !file || !targetAudience) return;
 
     setUploadState("uploading");
     setProgress(0);
 
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setUploadState("success");
-          
-          // Add to list
-          setTimeout(() => {
-            setCourses(prevCourses => [
-              {
-                id: Math.random().toString(36).substr(2, 9),
-                title,
-                description,
-                status: "processing",
-                date: new Date().toLocaleDateString('ru-RU'),
-                thumbnail: "/images/bg-abstract.jpg"
-              },
-              ...prevCourses
-            ]);
-            setIsModalOpen(false);
-            setUploadState("idle");
-            setTitle("");
-            setDescription("");
-            setFile(null);
-            setProgress(0);
-          }, 1500);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 300);
+    const progressInterval = setInterval(() => {
+      setProgress(p => p >= 90 ? 90 : p + 5);
+    }, 500);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResult = await uploadCourseVideo(formData);
+      if (uploadResult.error) throw new Error(uploadResult.error);
+
+      const videoUrl = uploadResult.url;
+
+      const result = await publishUserCourse(title, description, targetAudience, videoUrl);
+      if (result.error) throw new Error(result.error);
+
+      clearInterval(progressInterval);
+      setProgress(100);
+      setUploadState("success");
+
+      const newCourse = {
+        id: result.course?.id || Math.random().toString(),
+        title,
+        description,
+        status: "published" as const,
+        date: new Date().toLocaleDateString('ru-RU'),
+        thumbnail: "/images/bg-abstract.jpg"
+      };
+
+      setCourses(prev => [newCourse, ...prev]);
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadState("idle");
+        setTitle("");
+        setDescription("");
+        setFile(null);
+        setProgress(0);
+      }, 2000);
+
+    } catch (err: any) {
+      console.error("Upload failed", err);
+      clearInterval(progressInterval);
+      alert(`Ошибка загрузки: ${err.message}`);
+      setUploadState("idle");
+    }
   };
 
   return (
     <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 relative pb-20">
-      
+
       {/* Ambient Glow */}
-      <div 
+      <div
         className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-64 pointer-events-none -z-0"
         style={{
           background: 'radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 70%)',
@@ -111,7 +138,7 @@ export default function CreatorStudioPage() {
           <p className="text-[var(--text-secondary)] mt-2">Загружайте и управляйте своими видеокурсами</p>
         </div>
 
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="inline-flex items-center gap-2 px-6 py-3.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] hover:-translate-y-1 active:scale-95 shrink-0"
         >
@@ -123,7 +150,7 @@ export default function CreatorStudioPage() {
       {/* Course Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
         {courses.map((course) => (
-          <div 
+          <div
             key={course.id}
             className="group relative overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-2"
             style={{
@@ -135,8 +162,8 @@ export default function CreatorStudioPage() {
             {/* Thumbnail Area */}
             <div className="w-full aspect-video relative overflow-hidden bg-[var(--surface)]">
               <div className="absolute inset-0 bg-gradient-to-t from-[#04020E] via-transparent to-transparent z-10 opacity-80" />
-              <Image 
-                src={course.thumbnail} 
+              <Image
+                src={course.thumbnail}
                 alt={course.title}
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-110 opacity-50 group-hover:opacity-70"
@@ -146,13 +173,12 @@ export default function CreatorStudioPage() {
                   <Play size={24} className="ml-1" />
                 </button>
               </div>
-              
+
               <div className="absolute top-4 left-4 z-20">
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                  course.status === 'published' 
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${course.status === 'published'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                }`}>
+                  }`}>
                   {course.status === 'published' ? 'Опубликован' : 'В обработке'}
                 </span>
               </div>
@@ -164,14 +190,14 @@ export default function CreatorStudioPage() {
               <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 line-clamp-1">{course.title}</h3>
               <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{course.description}</p>
             </div>
-            
+
             {/* Hover Glow */}
             <div className="absolute inset-0 border-2 border-[var(--color-primary)]/0 group-hover:border-[var(--color-primary)]/30 rounded-3xl pointer-events-none transition-colors duration-300" />
           </div>
         ))}
-        
+
         {/* Upload Card Placeholder */}
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="group flex flex-col items-center justify-center h-full min-h-[300px] rounded-3xl transition-all duration-300 border-2 border-dashed border-[var(--border-color)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
         >
@@ -186,12 +212,12 @@ export default function CreatorStudioPage() {
       {/* Upload Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => uploadState === 'idle' && setIsModalOpen(false)}
           />
-          
-          <div 
+
+          <div
             className="relative w-full max-w-2xl bg-[var(--bg-card)] border border-[var(--border-color)] rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-300"
           >
             {/* Modal Header */}
@@ -201,7 +227,7 @@ export default function CreatorStudioPage() {
                 Загрузка нового курса
               </h3>
               {uploadState === 'idle' && (
-                <button 
+                <button
                   onClick={() => setIsModalOpen(false)}
                   className="p-2 bg-[var(--surface)] hover:bg-[var(--bg-card2)] rounded-full transition-colors text-[var(--text-secondary)] hover:text-white"
                 >
@@ -213,23 +239,23 @@ export default function CreatorStudioPage() {
             {/* Modal Body */}
             <div className="p-8">
               {uploadState === 'idle' ? (
-                <form onSubmit={simulateUpload} className="space-y-6">
+                <form onSubmit={handleUpload} className="space-y-6">
                   {/* Drag & Drop Zone */}
-                  <div 
+                  <div
                     className="w-full h-48 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer relative overflow-hidden group"
                     style={{ borderColor: file ? 'var(--color-primary)' : 'var(--border-color)', background: file ? 'var(--color-primary)/5' : 'var(--surface)' }}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <input 
-                      type="file" 
-                      accept="video/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
                       ref={fileInputRef}
                       onChange={(e) => setFile(e.target.files?.[0] || null)}
                     />
-                    
+
                     {file ? (
                       <div className="flex flex-col items-center text-center animate-in fade-in">
                         <FileVideo size={48} className="text-[var(--color-primary)] mb-3" />
@@ -253,8 +279,8 @@ export default function CreatorStudioPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">Название курса</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         required
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
@@ -264,7 +290,7 @@ export default function CreatorStudioPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">Описание</label>
-                      <textarea 
+                      <textarea
                         required
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
@@ -273,9 +299,23 @@ export default function CreatorStudioPage() {
                         className="w-full bg-[var(--surface)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all resize-none"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">Для кого это видео</label>
+                      <select
+                        required
+                        value={targetAudience}
+                        onChange={(e) => setTargetAudience(e.target.value)}
+                        className="w-full bg-[var(--surface)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all appearance-none"
+                      >
+                        <option value="Для глухих">Для глухих</option>
+                        <option value="Для слабослышащих">Для слабослышащих</option>
+                        <option value="Для сурдопереводчиков">Для сурдопереводчиков</option>
+                        <option value="Для всех">Для всех</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <button 
+                  <button
                     type="submit"
                     disabled={!file || !title}
                     className="w-full py-4 rounded-xl font-bold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -295,11 +335,11 @@ export default function CreatorStudioPage() {
                       <div className="relative w-24 h-24 mb-8">
                         <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                           <circle cx="50" cy="50" r="45" fill="none" stroke="var(--surface)" strokeWidth="8" />
-                          <circle 
-                            cx="50" cy="50" r="45" 
-                            fill="none" 
-                            stroke="url(#gradient)" 
-                            strokeWidth="8" 
+                          <circle
+                            cx="50" cy="50" r="45"
+                            fill="none"
+                            stroke="url(#gradient)"
+                            strokeWidth="8"
                             strokeLinecap="round"
                             strokeDasharray="283"
                             strokeDashoffset={283 - (progress / 100) * 283}

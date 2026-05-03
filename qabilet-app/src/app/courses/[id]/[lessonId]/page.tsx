@@ -32,13 +32,13 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
           setCurrentLesson(lesson);
         }
 
-        if (userId) {
+          if (userId) {
           const { data } = await supabase
             .from('user_progress')
             .select('*')
             .eq('user_id', userId)
             .eq('lesson_id', lessonId)
-            .single();
+            .maybeSingle();
           if (data?.is_completed) setIsCompleted(true);
         }
       } catch (err) {
@@ -70,6 +70,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
     const match = url.match(regExp);
     const videoId = (match && match[2].length === 11) ? match[2] : null;
     return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  };
+
+  const isDirectVideo = (url: string) => {
+    if (!url) return false;
+    return url.match(/\.(mp4|webm|ogg|mov|avi)$/i) || url.includes('supabase.co/storage');
   };
 
   if (loading) return (
@@ -143,11 +148,21 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
             }}
           >
             {currentLesson.video_url ? (
-              <iframe
-                src={getEmbedUrl(currentLesson.video_url) || ""}
-                className="w-full h-full"
-                allowFullScreen
-              />
+              isDirectVideo(currentLesson.video_url) ? (
+                <video 
+                  src={currentLesson.video_url}
+                  className="w-full h-full object-contain bg-black"
+                  controls
+                  controlsList="nodownload"
+                  playsInline
+                />
+              ) : (
+                <iframe
+                  src={getEmbedUrl(currentLesson.video_url) || ""}
+                  className="w-full h-full"
+                  allowFullScreen
+                />
+              )
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
                 <div

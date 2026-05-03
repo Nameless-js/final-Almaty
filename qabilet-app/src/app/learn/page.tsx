@@ -12,13 +12,14 @@ import {
   Sparkles,
   Video,
 } from "lucide-react";
-import { getCourses, getUserProgress, getLessons, getAIActivityCount, getLastStudiedLesson } from "@/app/actions";
+import { getCourses, getUserProgress, getLessons, getAIActivityCount, getLastStudiedLesson, getCommunityCourses } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
 
 export default function LearnPage() {
   const [courses, setCourses] = useState<any[]>([]);
   const [activityCount, setActivityCount] = useState(0);
   const [lastLesson, setLastLesson] = useState<any>(null);
+  const [communityCourses, setCommunityCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -30,16 +31,18 @@ export default function LearnPage() {
         if (!session) return;
         const userId = session.user.id;
 
-        const [coursesRes, progressRes, activityRes, lastRes] = await Promise.all([
+        const [coursesRes, progressRes, activityRes, lastRes, commRes] = await Promise.all([
           getCourses(),
           getUserProgress(userId),
           getAIActivityCount(userId),
-          getLastStudiedLesson(userId)
+          getLastStudiedLesson(userId),
+          getCommunityCourses()
         ]);
 
         const completedLessonIds = new Set((progressRes.data || []).map((p: any) => p.lesson_id));
         setActivityCount(activityRes.count || 0);
         setLastLesson(lastRes.data);
+        setCommunityCourses(commRes.data || []);
 
         const allCourses = coursesRes.data || [];
         const mappedData = await Promise.all(allCourses.map(async (item: any) => {
@@ -230,7 +233,7 @@ export default function LearnPage() {
             <BookOpen size={20} className="text-[var(--color-primary-light)]" />
             <h3 className="font-display text-2xl font-bold">Мои курсы</h3>
           </div>
-          <Link 
+          <Link
             href="/learn/studio"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white rounded-xl font-bold text-sm transition-all shadow-lg hover:shadow-[var(--color-primary)]/40 hover:-translate-y-1 active:scale-95 shrink-0"
           >
@@ -315,6 +318,56 @@ export default function LearnPage() {
                 Найти курс
                 <ChevronRight size={18} />
               </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Community Courses */}
+      <div className="relative z-10 space-y-5 pt-10">
+        <div className="section-title-line">
+          <Sparkles size={20} className="text-[var(--color-primary-light)]" />
+          <h3 className="font-display text-2xl font-bold">Курсы от сообщества</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {communityCourses.length > 0 ? (
+            communityCourses.map((course) => (
+              <Link
+                key={course.id}
+                href={`/courses/${course.id}`}
+                className="group relative overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-2 block"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: 'var(--shadow-card)',
+                }}
+              >
+                {/* Thumbnail Area */}
+                <div className="w-full aspect-video relative overflow-hidden bg-[var(--surface)]">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#04020E] via-transparent to-transparent z-10 opacity-80" />
+                  <img
+                    src={course.image_url || "/images/bg-abstract.jpg"}
+                    alt={course.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-50 group-hover:opacity-70"
+                  />
+                  <div className="absolute top-4 left-4 z-20">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] border border-[var(--color-primary)]/30 backdrop-blur-md">
+                      {course.category.replace('Авторский: ', '')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-6 relative z-20">
+                  <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 line-clamp-1 group-hover:text-[var(--color-primary-light)] transition-colors">{course.title}</h3>
+                  <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{course.description}</p>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full p-8 text-center text-[var(--text-muted)] bg-[var(--surface)] rounded-3xl border border-dashed border-[var(--border-color)]">
+              Пока нет курсов от сообщества. Будьте первыми, кто загрузит свой курс в Авторской студии!
             </div>
           )}
         </div>
