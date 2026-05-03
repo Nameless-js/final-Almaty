@@ -245,7 +245,7 @@ export default function CallPage() {
 
       recognition.onresult = (event: any) => {
         const text = event.results[event.results.length - 1][0].transcript;
-        console.log("Speech detected:", text);
+        console.log("🎙️ Speech detected:", text); // Иконка для заметности в консоли
         setRecognizedText(text);
         peerConnRef.current?.sendData(text);
         // Clear after 3 seconds
@@ -254,7 +254,10 @@ export default function CallPage() {
 
       recognition.onerror = (event: any) => {
         if (event.error === "no-speech") return; // Ignore no-speech timeout
-        console.error("Speech recognition error:", event.error);
+        console.error("❌ Speech recognition error:", event.error);
+        if (event.error === "not-allowed") {
+           alert("Доступ к микрофону запрещен. Пожалуйста, разрешите доступ к микрофону в настройках браузера для распознавания речи.");
+        }
         setIsListening(false);
       };
 
@@ -263,8 +266,16 @@ export default function CallPage() {
       };
 
       recognitionRef.current = recognition;
-      recognition.start();
-      setIsListening(true);
+      try {
+        recognition.start();
+        setIsListening(true);
+        console.log("✅ Слушаю микрофон...");
+      } catch (e) {
+        console.error("❌ Ошибка при запуске распознавания:", e);
+      }
+    } else {
+      console.error("❌ Распознавание речи не поддерживается в этом браузере.");
+      alert("Распознавание речи не поддерживается. Пожалуйста, используйте Google Chrome.");
     }
   };
 
@@ -315,7 +326,7 @@ export default function CallPage() {
     }
   };
 
-  const startCall = async (isCreator: boolean = true) => {
+  const startCall = async (isCreator: boolean = true, selectedRole: UserRole) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -344,11 +355,11 @@ export default function CallPage() {
 
       setState("connected");
       
-      // Start hand tracking only if Mute role
-      if (role === "mute") {
+      // Start tracking or speech based on the actual selected role
+      if (selectedRole === "mute") {
         isTrackingRef.current = true;
         startDetectionLoop();
-      } else if (role === "hearing") {
+      } else if (selectedRole === "hearing") {
         startSpeechToText();
       }
 
@@ -449,7 +460,7 @@ export default function CallPage() {
           </div>
           <div className="grid grid-cols-1 gap-4">
             <button 
-              onClick={() => { setRole("mute"); startCall(!inputCode); }}
+              onClick={() => { setRole("mute"); startCall(!inputCode, "mute"); }}
               className={`p-6 border-2 rounded-[2rem] text-left transition-all hover:scale-[1.02] ${role === "mute" ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5' : 'border-[var(--border-color)] bg-[var(--bg-card)]'}`}
             >
               <div className="flex items-center gap-4 mb-2">
@@ -461,7 +472,7 @@ export default function CallPage() {
               <p className="text-xs text-[var(--text-muted)]">Система будет переводить ваши жесты в текст для собеседника</p>
             </button>
             <button 
-              onClick={() => { setRole("hearing"); startCall(!inputCode); }}
+              onClick={() => { setRole("hearing"); startCall(!inputCode, "hearing"); }}
               className={`p-6 border-2 rounded-[2rem] text-left transition-all hover:scale-[1.02] ${role === "hearing" ? 'border-[var(--color-primary-light)] bg-[var(--color-primary-light)]/5' : 'border-[var(--border-color)] bg-[var(--bg-card)]'}`}
             >
               <div className="flex items-center gap-4 mb-2">
@@ -578,7 +589,7 @@ export default function CallPage() {
             {/* Hearing Mode: 3D Robot as Main View */}
             {role === "hearing" && (
               <div className="absolute inset-0 z-0">
-                <SignRobot currentWord={peerText} />
+                <SignRobot currentWord={recognizedText || peerText} />
               </div>
             )}
 

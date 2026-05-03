@@ -9,6 +9,23 @@ interface SignRobotProps {
   currentWord: string | null;
 }
 
+const WORD_TO_ANIM_MAP: Record<string, string[]> = {
+  "привет": ["robotarmature|robot_wave"],
+  "пока": ["robotarmature|robot_wave"],
+  "да": ["robotarmature|robot_yes"],
+  "нет": ["robotarmature|robot_no"],
+  "супер": ["robotarmature|robot_thumbsup"],
+  "класс": ["robotarmature|robot_thumbsup"],
+  "спасибо": ["robotarmature|robot_thumbsup"],
+  "танцуй": ["robotarmature|robot_dance"],
+  "прыгай": ["robotarmature|robot_jump"],
+  "иди": ["robotarmature|robot_walking"],
+  "беги": ["robotarmature|robot_running"],
+  "бей": ["robotarmature|robot_punch"],
+  "сидеть": ["robotarmature|robot_sitting"],
+  "встань": ["robotarmature|robot_standing"],
+};
+
 function AvatarModel({ currentWord }: SignRobotProps) {
   const fbx = useFBX("/models/avatar.fbx");
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -44,6 +61,8 @@ function AvatarModel({ currentWord }: SignRobotProps) {
         setActiveAction(idle);
       }
 
+      console.log("ВНИМАНИЕ! Доступные анимации в FBX:", Object.keys(actionsRef.current));
+
       fbx.scale.setScalar(0.0045); 
       fbx.position.y = -1.2;
     }
@@ -53,9 +72,28 @@ function AvatarModel({ currentWord }: SignRobotProps) {
   useEffect(() => {
     if (!mixerRef.current || !currentWord) return;
 
-    const word = currentWord.toLowerCase();
+    const word = currentWord.toLowerCase().trim();
+    const cleanWord = word.replace(/[.,!?]/g, "");
+
+    console.log("🤖 Пытаемся анимировать слово:", cleanWord);
+
+    let targetAnimName = cleanWord;
+    
+    // Check our map for known Russian words to English animation names
+    if (WORD_TO_ANIM_MAP[cleanWord]) {
+      const possibleAnims = WORD_TO_ANIM_MAP[cleanWord];
+      for (const anim of possibleAnims) {
+        if (actionsRef.current[anim]) {
+          targetAnimName = anim;
+          break;
+        }
+      }
+    }
+
     // Try to find exact match or fallback
-    let targetAction = actionsRef.current[word] || actionsRef.current['mixamo.com'] || Object.values(actionsRef.current)[0];
+    let targetAction = actionsRef.current[targetAnimName] 
+      || actionsRef.current['mixamo.com'] 
+      || Object.values(actionsRef.current)[0];
 
     if (targetAction && targetAction !== activeAction) {
       if (activeAction) activeAction.fadeOut(0.3);
