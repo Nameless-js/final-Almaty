@@ -36,7 +36,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
           if (userId) {
           const res = await checkLessonProgress(userId, lessonId);
           if (res.data) {
-             setIsAdded(true);
+             // For completed lessons, only consider it 'added' if it's not hidden
+             const hidden = JSON.parse(localStorage.getItem('hidden_courses') || '[]');
+             const isHidden = hidden.includes(id);
+             
+             setIsAdded(!isHidden);
              if (res.data.is_completed) setIsCompleted(true);
           }
         }
@@ -165,7 +169,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Link
-          href={`/courses/${id}`}
+          href={isAdded ? `/courses/${id}` : "/learn"}
           className="inline-flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--color-primary-light)] transition-colors font-semibold text-sm group"
         >
           <div
@@ -174,7 +178,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
           >
             <ArrowLeft size={14} />
           </div>
-          Назад к списку уроков
+          {isAdded ? "Назад к списку уроков" : "Назад к обучению"}
         </Link>
 
         <div
