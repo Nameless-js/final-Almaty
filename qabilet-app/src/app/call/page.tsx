@@ -262,7 +262,14 @@ export default function CallPage() {
       };
 
       recognition.onend = () => {
-        if (isListening) recognition.start();
+        // Restart recognition if it hasn't been explicitly stopped
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            // Ignore already started errors
+          }
+        }
       };
 
       recognitionRef.current = recognition;
@@ -650,7 +657,6 @@ export default function CallPage() {
             {role === "mute" && remoteStream && (
               <div className="absolute bottom-6 right-6 w-48 aspect-video md:w-64 bg-black rounded-2xl border-2 border-white/20 shadow-2xl overflow-hidden z-20 group transition-all hover:scale-105">
                 <video 
-                  srcObject={remoteStream as any}
                   autoPlay 
                   playsInline 
                   className="w-full h-full object-cover"
