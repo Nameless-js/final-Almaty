@@ -3,7 +3,7 @@
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Play, Circle } from "lucide-react";
-import { getLessons, completeLesson } from "@/app/actions";
+import { getLessons, completeLesson, checkLessonProgress, removeLessonProgress } from "@/app/actions";
 import { useAccessibility } from "@/components/AccessibilityProvider";
 import { supabase } from "@/lib/supabase";
 
@@ -15,6 +15,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
 
   const { ttsEnabled } = useAccessibility();
 
@@ -33,13 +34,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
         }
 
           if (userId) {
-          const { data } = await supabase
-            .from('user_progress')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('lesson_id', lessonId)
-            .maybeSingle();
-          if (data?.is_completed) setIsCompleted(true);
+          const res = await checkLessonProgress(userId, lessonId);
+          if (res.data) {
+             setIsAdded(true);
+             if (res.data.is_completed) setIsCompleted(true);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -55,7 +54,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const res = await completeLesson(session.user.id, lessonId);
+      const res = await completeLesson(session.user.id, lessonId, true);
       if (res.success) setIsCompleted(true);
     } catch (err) {
       console.error(err);
@@ -64,11 +63,69 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
     }
   };
 
-  const getEmbedUrl = (url: string) => {
+  const handleAddToMyCourses = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCompleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      await completeLesson(session.user.id, lessonId, false);
+      
+      // Clear hidden state if any
+      const hidden = JSON.parse(localStorage.getItem('hidden_courses') || '[]');
+      const newHidden = hidden.filter((h: string) => h !== id);
+      localStorage.setItem('hidden_courses', JSON.stringify(newHidden));
+      
+      setIsAdded(true);
+      alert("Курс добавлен в раздел 'Мои курсы'!");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleRemoveFromMyCourses = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isCompleted) {
+      // If completed, we just hide it from the dashboard using localStorage
+      const hidden = JSON.parse(localStorage.getItem('hidden_courses') || '[]');
+      if (!hidden.includes(id)) {
+        hidden.push(id);
+        localStorage.setItem('hidden_courses', JSON.stringify(hidden));
+      }
+      setIsAdded(false);
+      alert("Курс скрыт из раздела 'Мои курсы'. Прогресс сохранен.");
+      return;
+    }
+
+    setCompleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      await removeLessonProgress(session.user.id, lessonId);
+      setIsAdded(false);
+      setIsCompleted(false);
+      alert("Курс удален из раздела 'Мои курсы'");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const getYoutubeId = (url: string) => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
-    const videoId = (match && match[2].length === 11) ? match[2] : null;
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const getEmbedUrl = (url: string) => {
+    const videoId = getYoutubeId(url);
     return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
   };
 
@@ -206,32 +263,54 @@ export default function LessonPage({ params }: { params: Promise<{ id: string, l
               className="mt-10 pt-6 flex flex-wrap gap-4 items-center justify-between"
               style={{ borderTop: '1px solid var(--border-color)' }}
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Статус:</span>
-                {isCompleted ? (
-                  <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
-                    style={{
-                      background: 'rgba(52,211,153,0.1)',
-                      border: '1px solid rgba(52,211,153,0.25)',
-                      color: '#34D399',
-                    }}
-                  >
-                    <CheckCircle size={13} />
-                    ЗАВЕРШЕНО
-                  </span>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
-                    style={{
-                      background: 'var(--bg-card2)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <Circle size={13} />
-                    В ПРОЦЕССЕ
-                  </span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Статус:</span>
+                  {isCompleted ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                      style={{
+                        background: 'rgba(52,211,153,0.1)',
+                        border: '1px solid rgba(52,211,153,0.25)',
+                        color: '#34D399',
+                      }}
+                    >
+                      <CheckCircle size={13} />
+                      ЗАВЕРШЕНО
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                      style={{
+                        background: 'var(--bg-card2)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <Circle size={13} />
+                      В ПРОЦЕССЕ
+                    </span>
+                  )}
+                </div>
+
+                {currentLesson.course_id && (
+                  isAdded ? (
+                    <button
+                      onClick={handleRemoveFromMyCourses}
+                      disabled={completing}
+                      className="text-xs font-bold text-red-400 hover:underline disabled:opacity-50"
+                    >
+                      - Удалить из "Мои курсы"
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAddToMyCourses}
+                      disabled={completing}
+                      className="text-xs font-bold text-[var(--color-primary-light)] hover:underline disabled:opacity-50"
+                    >
+                      + Добавить в "Мои курсы"
+                    </button>
+                  )
                 )}
               </div>
 

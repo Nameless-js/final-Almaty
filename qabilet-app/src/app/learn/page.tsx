@@ -19,12 +19,26 @@ export default function LearnPage() {
   const [courses, setCourses] = useState<any[]>([]);
   const [activityCount, setActivityCount] = useState(0);
   const [lastLesson, setLastLesson] = useState<any>(null);
+  const [hiddenCourses, setHiddenCourses] = useState<Set<string>>(new Set());
   const [communityCourses, setCommunityCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
+  const getYoutubeId = (url: string) => {
+    if (!url) return null;
+    const trimmed = url.trim();
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = trimmed.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
   useEffect(() => {
     setMounted(true);
+    // Load hidden courses from localStorage
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('hidden_courses') : null;
+    const hiddenSet = saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+    setHiddenCourses(hiddenSet);
+
     const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -39,22 +53,30 @@ export default function LearnPage() {
           getCommunityCourses()
         ]);
 
-        const completedLessonIds = new Set((progressRes.data || []).map((p: any) => p.lesson_id));
+        const allProgress = progressRes.data || [];
+        const completedLessonIds = new Set(allProgress.filter((p: any) => p.is_completed).map((p: any) => p.lesson_id));
+        const startedLessonIds = new Set(allProgress.map((p: any) => p.lesson_id));
         setActivityCount(activityRes.count || 0);
         setLastLesson(lastRes.data);
         setCommunityCourses(commRes.data || []);
 
         const allCourses = coursesRes.data || [];
-        const mappedData = await Promise.all(allCourses.map(async (item: any) => {
-          const lessonsRes = await getLessons(item.id);
-          const courseLessons = lessonsRes.data || [];
+        const mappedData = allCourses.map((item: any) => {
+          const courseLessons = item.lessons || [];
           const total = courseLessons.length;
           const completed = courseLessons.filter((l: any) => completedLessonIds.has(l.id)).length;
+          const hasAnyProgress = courseLessons.some((l: any) => startedLessonIds.has(l.id));
           const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-          return { ...item, progress: percent, completed, total };
-        }));
+          return { ...item, progress: percent, completed, total, hasAnyProgress };
+        });
 
-        setCourses(mappedData.filter(c => c.completed > 0));
+        setCourses(mappedData.filter(c => {
+          const isMyCreation = c.category?.includes(`#creator:${userId}`);
+          // If it's my creation, only show if I've actually started/added it
+          if (isMyCreation && !c.hasAnyProgress) return false;
+          if (hiddenSet.has(c.id)) return false;
+          return c.hasAnyProgress;
+        }));
       } catch (err) {
         console.error("Error fetching learn dashboard data:", err);
       } finally {
@@ -248,46 +270,74 @@ export default function LearnPage() {
               <Link
                 href={`/courses/${course.id}`}
                 key={course.id}
-                className="card-premium block p-6 group relative overflow-hidden"
+                className="group relative overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-2 block"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: 'var(--shadow-card)',
+                }}
               >
-                {/* Watermark icon */}
-                <div
-                  className="absolute top-0 right-0 p-5 opacity-[0.04] group-hover:opacity-[0.07] transition-opacity duration-500 pointer-events-none"
-                >
-                  <BookOpen size={90} />
-                </div>
+                {/* Thumbnail Area */}
+                <div className="w-full aspect-video relative overflow-hidden bg-[var(--surface)]">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#04020E] via-transparent to-transparent z-10 opacity-80" />
+                  
+                  {(() => {
+                    const videoUrl = course.lessons?.[0]?.video_url;
+                    const youtubeId = getYoutubeId(videoUrl);
 
-                <div className="relative z-10">
-                  <div className="flex justify-between items-center mb-4">
-                    <span
-                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
-                      style={{
-                        background: 'var(--bg-card2)',
-                        border: '1px solid var(--border-color)',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      {course.category}
-                    </span>
-                    <span className="text-xl font-black text-[var(--color-primary-light)]">
-                      {course.progress}%
-                    </span>
-                  </div>
+                    if (youtubeId) {
+                      return (
+                        <img 
+                          src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                        />
+                      );
+                    }
+                    
+                    if (videoUrl) {
+                      return (
+                        <video 
+                          src={videoUrl} 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      );
+                    }
 
-                  <h4 className="text-2xl font-bold mb-6 text-[var(--text-primary)]">{course.title}</h4>
+                    return (
+                      <div className="w-full h-full flex items-center justify-center bg-[var(--bg-card2)]">
+                         <Video size={48} className="text-[var(--text-muted)] opacity-20" />
+                      </div>
+                    );
+                  })()}
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2">
-                      <span className="text-[var(--text-muted)]">Прогресс</span>
-                      <span className="text-[var(--text-secondary)]">{course.completed}/{course.total} уроков</span>
+                  {/* Progress Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-white/90">
+                      <span>Прогресс</span>
+                      <span>{course.progress}%</span>
                     </div>
-                    <div className="progress-bar-track">
+                    <div className="progress-bar-track bg-white/20 h-1.5 backdrop-blur-sm">
                       <div
-                        className="progress-bar-fill"
+                        className="progress-bar-fill shadow-[0_0_10px_rgba(124,58,237,0.5)]"
                         style={{ width: mounted ? `${course.progress}%` : "0%" }}
                       />
                     </div>
                   </div>
+
+                  <div className="absolute top-4 left-4 z-20">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] border border-[var(--color-primary)]/30 backdrop-blur-md">
+                      {course.category?.split(' #')[0]?.replace('Авторский: ', '') || 'Курс'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-6 relative z-20">
+                  <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1 line-clamp-1 group-hover:text-[var(--color-primary-light)] transition-colors">{course.title}</h3>
+                  <p className="text-xs text-[var(--text-muted)]">{course.completed}/{course.total} уроков пройдено</p>
                 </div>
               </Link>
             ))
@@ -335,7 +385,7 @@ export default function LearnPage() {
             communityCourses.map((course) => (
               <Link
                 key={course.id}
-                href={`/courses/${course.id}`}
+                href={course.lessons?.[0]?.id ? `/courses/${course.id}/${course.lessons[0].id}` : `/courses/${course.id}`}
                 className="group relative overflow-hidden rounded-3xl transition-all duration-300 hover:-translate-y-2 block"
                 style={{
                   background: 'var(--bg-card)',
@@ -346,14 +396,42 @@ export default function LearnPage() {
                 {/* Thumbnail Area */}
                 <div className="w-full aspect-video relative overflow-hidden bg-[var(--surface)]">
                   <div className="absolute inset-0 bg-gradient-to-t from-[#04020E] via-transparent to-transparent z-10 opacity-80" />
-                  <img
-                    src={course.image_url || "/images/bg-abstract.jpg"}
-                    alt={course.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-50 group-hover:opacity-70"
-                  />
+                  
+                  {(() => {
+                    const videoUrl = course.lessons?.[0]?.video_url;
+                    const youtubeId = getYoutubeId(videoUrl);
+
+                    if (youtubeId) {
+                      return (
+                        <img 
+                          src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                        />
+                      );
+                    }
+                    
+                    if (videoUrl) {
+                      return (
+                        <video 
+                          src={videoUrl} 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      );
+                    }
+
+                    return (
+                      <div className="w-full h-full flex items-center justify-center bg-[var(--bg-card2)]">
+                         <Video size={48} className="text-[var(--text-muted)] opacity-20" />
+                      </div>
+                    );
+                  })()}
+
                   <div className="absolute top-4 left-4 z-20">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[var(--color-primary)]/20 text-[var(--color-primary-light)] border border-[var(--color-primary)]/30 backdrop-blur-md">
-                      {course.category.replace('Авторский: ', '')}
+                      {course.category.split(' #')[0].replace('Авторский: ', '')}
                     </span>
                   </div>
                 </div>

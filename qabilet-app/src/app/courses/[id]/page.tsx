@@ -50,7 +50,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
       {/* Back + Header card */}
       <div className="relative z-10">
         <Link
-          href="/"
+          href="/learn"
           className="inline-flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--color-primary-light)] transition-colors mb-5 font-semibold text-sm group"
         >
           <div
@@ -59,7 +59,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           >
             <ArrowLeft size={14} />
           </div>
-          Назад к курсам
+          Назад к обучению
         </Link>
 
         <div

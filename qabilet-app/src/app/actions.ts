@@ -10,7 +10,7 @@ const supabase = createClient(supabaseUrl.replace(/\/rest\/v1\/?$/, ''), supabas
 
 export async function getCourses() {
   try {
-    const { data, error } = await supabase.from('courses').select('*');
+    const { data, error } = await supabase.from('courses').select('*, lessons(*)');
     if (error) return { error: error.message };
     return { data };
   } catch (err: any) {
@@ -23,7 +23,7 @@ export async function getLessons(courseId: string) {
     const { data, error } = await supabase
       .from('lessons')
       .select('*')
-      .or(`course_id.eq.${courseId},course_id.is.null`)
+      .eq('course_id', courseId)
       .order('order_index');
     if (error) return { error: error.message };
     return { data };
@@ -32,14 +32,14 @@ export async function getLessons(courseId: string) {
   }
 }
 
-export async function completeLesson(userId: string, lessonId: string) {
+export async function completeLesson(userId: string, lessonId: string, completed: boolean = true) {
   try {
     const { error } = await supabase
       .from('user_progress')
       .upsert({ 
         user_id: userId, 
         lesson_id: lessonId, 
-        is_completed: true,
+        is_completed: completed,
         last_watched: new Date().toISOString()
       }, { onConflict: 'user_id,lesson_id' });
     if (error) return { error: error.message };
@@ -54,8 +54,22 @@ export async function getUserProgress(userId: string) {
     const { data, error } = await supabase
       .from('user_progress')
       .select('lesson_id, is_completed')
+      .eq('user_id', userId);
+    if (error) return { error: error.message };
+    return { data };
+  } catch (err: any) {
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function checkLessonProgress(userId: string, lessonId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('user_progress')
+      .select('*')
       .eq('user_id', userId)
-      .eq('is_completed', true);
+      .eq('lesson_id', lessonId)
+      .maybeSingle();
     if (error) return { error: error.message };
     return { data };
   } catch (err: any) {
@@ -262,9 +276,9 @@ export async function saveGesturePattern(word: string, pattern: any) {
   }
 }
 
-export async function publishUserCourse(title: string, description: string, targetAudience: string, videoUrl: string) {
+export async function publishUserCourse(title: string, description: string, targetAudience: string, videoUrl: string, userId: string) {
   try {
-    const category = `Авторский: ${targetAudience}`;
+    const category = `Авторский: ${targetAudience} #creator:${userId}`;
     // Create course
     const { data: courseData, error: courseError } = await supabase
       .from('courses')
@@ -272,7 +286,7 @@ export async function publishUserCourse(title: string, description: string, targ
         title,
         description,
         category,
-        image_url: '/images/bg-abstract.jpg' // default thumbnail
+        image_url: null
       })
       .select()
       .single();
@@ -303,7 +317,7 @@ export async function getCommunityCourses() {
   try {
     const { data, error } = await supabase
       .from('courses')
-      .select('*, lessons(video_url)')
+      .select('*, lessons(id, video_url)')
       .ilike('category', 'Авторский:%')
       .order('created_at', { ascending: false });
       
@@ -341,6 +355,49 @@ export async function uploadCourseVideo(formData: FormData) {
     return { success: true, url: publicUrlData.publicUrl };
   } catch (err: any) {
     console.error("uploadCourseVideo error:", err);
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function deleteCourse(courseId: string, userId: string) {
+  try {
+    const { data: course, error: fetchError } = await supabase
+      .from('courses')
+      .select('category')
+      .eq('id', courseId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!course.category?.includes(`#creator:${userId}`)) {
+      throw new Error("You are not the creator of this course");
+    }
+
+    // Delete lessons first
+    await supabase.from('lessons').delete().eq('course_id', courseId);
+
+    const { error: deleteError } = await supabase
+      .from('courses')
+      .delete()
+      .eq('id', courseId);
+
+    if (deleteError) throw deleteError;
+    return { success: true };
+  } catch (err: any) {
+    console.error("deleteCourse error:", err);
+    return { error: err.message || "Unknown error" };
+  }
+}
+
+export async function removeLessonProgress(userId: string, lessonId: string) {
+  try {
+    const { error } = await supabase
+      .from('user_progress')
+      .delete()
+      .eq('user_id', userId)
+      .eq('lesson_id', lessonId);
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err: any) {
     return { error: err.message || "Unknown error" };
   }
 }

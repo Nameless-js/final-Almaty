@@ -14,6 +14,8 @@ interface CourseUpload {
   status: "processing" | "published";
   date: string;
   thumbnail: string;
+  videoUrl?: string;
+  category?: string;
 }
 
 export default function CreatorStudioPage() {
@@ -27,6 +29,8 @@ export default function CreatorStudioPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [targetAudience, setTargetAudience] = useState("Для глухих");
+  const [uploadType, setUploadType] = useState<"file" | "url">("file");
+  const [videoUrlInput, setVideoUrlInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,7 +45,9 @@ export default function CreatorStudioPage() {
           description: c.description,
           status: "published" as const,
           date: new Date(c.created_at).toLocaleDateString('ru-RU'),
-          thumbnail: c.image_url || "/images/bg-abstract.jpg"
+          thumbnail: c.image_url || "/images/bg-abstract.jpg",
+          videoUrl: c.lessons?.[0]?.video_url,
+          category: c.category
         }));
         setCourses(formatted);
       }
@@ -62,7 +68,7 @@ export default function CreatorStudioPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !file || !targetAudience) return;
+    if (!title || (!file && !videoUrlInput) || !targetAudience) return;
 
     setUploadState("uploading");
     setProgress(0);
@@ -72,15 +78,21 @@ export default function CreatorStudioPage() {
     }, 500);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      let finalVideoUrl = videoUrlInput;
 
-      const uploadResult = await uploadCourseVideo(formData);
-      if (uploadResult.error) throw new Error(uploadResult.error);
+      if (uploadType === "file" && file) {
+        const formData = new FormData();
+        formData.append('file', file);
 
-      const videoUrl = uploadResult.url;
+        const uploadResult = await uploadCourseVideo(formData);
+        if (uploadResult.error) throw new Error(uploadResult.error);
+        finalVideoUrl = uploadResult.url;
+      }
 
-      const result = await publishUserCourse(title, description, targetAudience, videoUrl);
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user.id || "anonymous";
+
+      const result = await publishUserCourse(title, description, targetAudience, finalVideoUrl, userId);
       if (result.error) throw new Error(result.error);
 
       clearInterval(progressInterval);
@@ -93,10 +105,12 @@ export default function CreatorStudioPage() {
         description,
         status: "published" as const,
         date: new Date().toLocaleDateString('ru-RU'),
-        thumbnail: "/images/bg-abstract.jpg"
+        thumbnail: "/images/bg-abstract.jpg",
+        category: `Авторский: ${targetAudience} #creator:${userId}`,
+        videoUrl: finalVideoUrl
       };
 
-      setCourses(prev => [newCourse, ...prev]);
+      setCourses(prev => [newCourse as any, ...prev]);
 
       setTimeout(() => {
         setIsModalOpen(false);
@@ -113,6 +127,36 @@ export default function CreatorStudioPage() {
       alert(`Ошибка загрузки: ${err.message}`);
       setUploadState("idle");
     }
+  };
+
+  const handleDelete = async (courseId: string) => {
+    if (!confirm("Вы уверены, что хотите удалить этот курс?")) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await (await import("@/app/actions")).deleteCourse(courseId, session.user.id);
+      if (res.error) throw new Error(res.error);
+
+      setCourses(prev => prev.filter(c => c.id !== courseId));
+      alert("Курс успешно удален");
+    } catch (err: any) {
+      alert(`Ошибка удаления: ${err.message}`);
+    }
+  };
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUserId(session?.user.id || null);
+    });
+  }, []);
+
+  const getYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url?.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
   };
 
   return (
@@ -162,12 +206,28 @@ export default function CreatorStudioPage() {
             {/* Thumbnail Area */}
             <div className="w-full aspect-video relative overflow-hidden bg-[var(--surface)]">
               <div className="absolute inset-0 bg-gradient-to-t from-[#04020E] via-transparent to-transparent z-10 opacity-80" />
-              <Image
-                src={course.thumbnail}
-                alt={course.title}
-                fill
-                className="object-cover transition-transform duration-700 group-hover:scale-110 opacity-50 group-hover:opacity-70"
-              />
+              
+              {course.videoUrl ? (
+                getYoutubeId(course.videoUrl) ? (
+                  <img 
+                    src={`https://img.youtube.com/vi/${getYoutubeId(course.videoUrl)}/mqdefault.jpg`}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                  />
+                ) : (
+                  <video 
+                    src={course.videoUrl} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                )
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-[var(--bg-card2)]">
+                   <Video size={48} className="text-[var(--text-muted)] opacity-20" />
+                </div>
+              )}
+              
               <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <button className="w-14 h-14 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] transform scale-75 group-hover:scale-100 transition-all duration-300">
                   <Play size={24} className="ml-1" />
@@ -185,10 +245,22 @@ export default function CreatorStudioPage() {
             </div>
 
             {/* Content Area */}
-            <div className="p-6 relative z-20">
-              <div className="text-xs text-[var(--text-muted)] mb-2 font-medium">{course.date}</div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 line-clamp-1">{course.title}</h3>
-              <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{course.description}</p>
+            <div className="p-6 relative z-20 flex justify-between items-start">
+              <div className="flex-1">
+                <div className="text-xs text-[var(--text-muted)] mb-2 font-medium">{course.date}</div>
+                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 line-clamp-1">{course.title}</h3>
+                <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{course.description}</p>
+              </div>
+              
+              {currentUserId && course.category?.includes(`#creator:${currentUserId}`) && (
+                <button
+                  onClick={(e) => { e.preventDefault(); handleDelete(course.id); }}
+                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors ml-4"
+                  title="Удалить курс"
+                >
+                  <X size={20} />
+                </button>
+              )}
             </div>
 
             {/* Hover Glow */}
@@ -237,44 +309,77 @@ export default function CreatorStudioPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-8">
+            <div className="p-8 max-h-[70vh] overflow-y-auto">
               {uploadState === 'idle' ? (
                 <form onSubmit={handleUpload} className="space-y-6">
-                  {/* Drag & Drop Zone */}
-                  <div
-                    className="w-full h-48 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer relative overflow-hidden group"
-                    style={{ borderColor: file ? 'var(--color-primary)' : 'var(--border-color)', background: file ? 'var(--color-primary)/5' : 'var(--surface)' }}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <input
-                      type="file"
-                      accept="video/*"
-                      className="hidden"
-                      ref={fileInputRef}
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    />
-
-                    {file ? (
-                      <div className="flex flex-col items-center text-center animate-in fade-in">
-                        <FileVideo size={48} className="text-[var(--color-primary)] mb-3" />
-                        <p className="font-bold text-[var(--text-primary)]">{file.name}</p>
-                        <p className="text-xs text-[var(--text-muted)] mt-1">{(file.size / (1024 * 1024)).toFixed(2)} MB • Видео выбрано</p>
-                        <div className="mt-4 px-4 py-1.5 rounded-full bg-[var(--bg-card2)] text-[10px] uppercase font-bold text-[var(--text-muted)] hover:text-white transition-colors">
-                          Выбрать другой файл
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-center px-4">
-                        <div className="w-16 h-16 rounded-full bg-[var(--bg-card2)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <Upload size={24} className="text-[var(--text-muted)] group-hover:text-[var(--color-primary)] transition-colors" />
-                        </div>
-                        <p className="font-bold text-[var(--text-primary)] mb-1">Нажмите или перетащите видео сюда</p>
-                        <p className="text-sm text-[var(--text-muted)]">Поддерживаются форматы MP4, MOV, AVI до 500MB</p>
-                      </div>
-                    )}
+                  {/* Upload Type Toggle */}
+                  <div className="flex bg-[var(--surface)] p-1 rounded-xl border border-[var(--border-color)]">
+                    <button
+                      type="button"
+                      onClick={() => setUploadType("file")}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${uploadType === "file" ? "bg-[var(--color-primary)] text-white shadow-lg" : "text-[var(--text-muted)] hover:text-white"}`}
+                    >
+                      Загрузить файл
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadType("url")}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${uploadType === "url" ? "bg-[var(--color-primary)] text-white shadow-lg" : "text-[var(--text-muted)] hover:text-white"}`}
+                    >
+                      Ссылка (YouTube/S3)
+                    </button>
                   </div>
+
+                  {uploadType === "file" ? (
+                    /* Drag & Drop Zone */
+                    <div
+                      className="w-full h-48 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer relative overflow-hidden group"
+                      style={{ borderColor: file ? 'var(--color-primary)' : 'var(--border-color)', background: file ? 'var(--color-primary)/5' : 'var(--surface)' }}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      />
+
+                      {file ? (
+                        <div className="flex flex-col items-center text-center animate-in fade-in">
+                          <FileVideo size={48} className="text-[var(--color-primary)] mb-3" />
+                          <p className="font-bold text-[var(--text-primary)]">{file.name}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-1">{(file.size / (1024 * 1024)).toFixed(2)} MB • Видео выбрано</p>
+                          <div className="mt-4 px-4 py-1.5 rounded-full bg-[var(--bg-card2)] text-[10px] uppercase font-bold text-[var(--text-muted)] hover:text-white transition-colors">
+                            Выбрать другой файл
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center text-center px-4">
+                          <div className="w-16 h-16 rounded-full bg-[var(--bg-card2)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <Upload size={24} className="text-[var(--text-muted)] group-hover:text-[var(--color-primary)] transition-colors" />
+                          </div>
+                          <p className="font-bold text-[var(--text-primary)] mb-1">Нажмите или перетащите видео сюда</p>
+                          <p className="text-sm text-[var(--text-muted)]">Поддерживаются форматы MP4, MOV, AVI до 500MB</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">Ссылка на видео</label>
+                      <input
+                        type="url"
+                        required
+                        value={videoUrlInput}
+                        onChange={(e) => setVideoUrlInput(e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="w-full bg-[var(--surface)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
+                      />
+                      <p className="text-[10px] text-[var(--text-muted)] mt-2">Поддерживаются YouTube, Vimeo и прямые ссылки на видеофайлы</p>
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div>
@@ -317,11 +422,11 @@ export default function CreatorStudioPage() {
 
                   <button
                     type="submit"
-                    disabled={!file || !title}
+                    disabled={(!file && !videoUrlInput) || !title || uploadState !== 'idle'}
                     className="w-full py-4 rounded-xl font-bold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
-                      background: (!file || !title) ? 'var(--surface)' : 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))',
-                      boxShadow: (!file || !title) ? 'none' : '0 10px 30px rgba(124,58,237,0.4)'
+                      background: ((!file && !videoUrlInput) || !title) ? 'var(--surface)' : 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))',
+                      boxShadow: ((!file && !videoUrlInput) || !title) ? 'none' : '0 10px 30px rgba(124,58,237,0.4)'
                     }}
                   >
                     Опубликовать курс

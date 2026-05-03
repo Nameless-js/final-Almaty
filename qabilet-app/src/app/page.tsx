@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getCourses, getUserProgress } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
-import { ArrowRight, Layers, Infinity as InfinityIcon, ShieldCheck } from "lucide-react";
+import { ArrowRight, Layers, Infinity as InfinityIcon, ShieldCheck, Sparkles, Video, MessageCircle, BookOpen, Activity } from "lucide-react";
 
 interface Course {
   id: string;
@@ -141,95 +141,103 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Courses Grid */}
-      <div className="relative z-10">
-        <div className="section-title-line mb-6">
-          <h3 className="font-display text-2xl font-bold">Популярные курсы</h3>
+      {/* Main Features Section */}
+      <div className="relative z-10 space-y-8 pt-6">
+        <div className="text-center space-y-3">
+          <div className="section-title-line justify-center">
+            <Sparkles size={20} className="text-[var(--color-primary-light)]" />
+            <h3 className="font-display text-3xl font-bold">Наши главные фишки</h3>
+          </div>
+          <p className="text-[var(--text-muted)] text-sm max-w-lg mx-auto">
+            Инновационные инструменты, созданные для обеспечения максимальной доступности и комфорта в обучении и общении.
+          </p>
         </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[0, 1, 2, 3].map(i => (
-              <div key={i} className="h-48 skeleton rounded-2xl" style={{ animationDelay: `${i * 150}ms` }} />
-            ))}
-          </div>
-        ) : error ? (
-          <div
-            className="p-6 rounded-2xl text-center"
-            style={{
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              color: 'rgb(252, 165, 165)',
-            }}
-          >
-            <p className="font-semibold">{error}</p>
-          </div>
-        ) : courses.length === 0 ? (
-          <div className="text-center py-16 text-[var(--text-muted)]">
-            <span className="text-5xl block mb-4 opacity-50">📭</span>
-            <p className="font-medium">Нет доступных курсов</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {courses.map((course, idx) => (
-              <Link
-                href={`/courses/${course.id}`}
-                key={course.id}
-                className="card-premium block p-6 group"
-                style={{ animationDelay: `${idx * 80}ms` }}
-              >
-                {/* Top row */}
-                <div className="flex items-center gap-4 mb-5">
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
-                    style={{
-                      background: course.iconBg,
-                      boxShadow: '0 4px 16px rgba(124,58,237,0.35)',
-                    }}
-                  >
-                    {course.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-display font-bold text-lg mb-1.5 truncate pr-2">
-                      {course.title}
-                    </h4>
-                    <span className="badge-primary">{course.category || "Основы"}</span>
-                  </div>
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 translate-x-2"
-                    style={{
-                      background: 'rgba(124,58,237,0.15)',
-                      border: '1px solid rgba(124,58,237,0.25)',
-                    }}
-                  >
-                    <ArrowRight size={16} className="text-[var(--color-primary-light)]" />
-                  </div>
-                </div>
-
-                {/* Description */}
-                <p className="text-sm text-[var(--text-secondary)] mb-5 line-clamp-2 leading-relaxed">
-                  {course.description}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* AI Tutor */}
+          <Link href="/ai" className="group card-premium p-8 relative overflow-hidden transition-all duration-500 hover:-translate-y-2">
+            <div className="absolute -right-6 -bottom-6 opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+               <Sparkles size={140} />
+            </div>
+            <div className="flex flex-col gap-6">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#7C3AED] to-[#A78BFA] shadow-[0_4px_20px_rgba(124,58,237,0.4)]">
+                <MessageCircle size={28} color="white" />
+              </div>
+              <div>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[var(--color-primary-light)] transition-colors">ИИ-Тьютор</h4>
+                <p className="text-[var(--text-secondary)] leading-relaxed">
+                  Персональный ассистент на базе искусственного интеллекта, готовый ответить на любые вопросы и помочь в обучении 24/7.
                 </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--color-primary-light)] opacity-0 group-hover:opacity-100 transition-all duration-300">
+                Запустить чат <ArrowRight size={14} />
+              </div>
+            </div>
+          </Link>
 
-                {/* Progress */}
-                <div className="space-y-2">
-                  <div className="progress-bar-track">
-                    <div
-                      className="progress-bar-fill"
-                      style={{ width: mounted ? `${course.progress}%` : "0%" }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-semibold transition-colors duration-200">
-                    <span className="text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">
-                      {course.completed}/{course.total} уроков пройдено
-                    </span>
-                    <span className="text-[var(--color-primary-light)]">{course.progress}%</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+          {/* Video Calls */}
+          <Link href="/call" className="group card-premium p-8 relative overflow-hidden transition-all duration-500 hover:-translate-y-2">
+            <div className="absolute -right-6 -bottom-6 opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+               <Video size={140} />
+            </div>
+            <div className="flex flex-col gap-6">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#06B6D4] to-[#22D3EE] shadow-[0_4px_20px_rgba(6,182,212,0.4)]">
+                <Video size={28} color="white" />
+              </div>
+              <div>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#06B6D4] transition-colors">Видеозвонки</h4>
+                <p className="text-[var(--text-secondary)] leading-relaxed">
+                  Специализированная система видеосвязи с поддержкой сурдоперевода и интеллектуального распознавания речи.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#06B6D4] opacity-0 group-hover:opacity-100 transition-all duration-300">
+                Запустить звонок <ArrowRight size={14} />
+              </div>
+            </div>
+          </Link>
+
+          {/* Gesture Recognition */}
+          <Link href="/gestures" className="group card-premium p-8 relative overflow-hidden transition-all duration-500 hover:-translate-y-2">
+            <div className="absolute -right-6 -bottom-6 opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+               <Activity size={140} />
+            </div>
+            <div className="flex flex-col gap-6">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] shadow-[0_4px_20px_rgba(245,158,11,0.4)]">
+                <Activity size={28} color="white" />
+              </div>
+              <div>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#F59E0B] transition-colors">Распознавание жестов</h4>
+                <p className="text-[var(--text-secondary)] leading-relaxed">
+                  Уникальная технология перевода языка жестов в текст в реальном времени с использованием вашей веб-камеры.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#F59E0B] opacity-0 group-hover:opacity-100 transition-all duration-300">
+                Начать перевод <ArrowRight size={14} />
+              </div>
+            </div>
+          </Link>
+
+          {/* Alphabet Signs */}
+          <Link href="/signs" className="group card-premium p-8 relative overflow-hidden transition-all duration-500 hover:-translate-y-2">
+            <div className="absolute -right-6 -bottom-6 opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+               <BookOpen size={140} />
+            </div>
+            <div className="flex flex-col gap-6">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#10B981] to-[#34D399] shadow-[0_4px_20px_rgba(16,185,129,0.4)]">
+                <BookOpen size={28} color="white" />
+              </div>
+              <div>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#10B981] transition-colors">Азбука жестов</h4>
+                <p className="text-[var(--text-secondary)] leading-relaxed">
+                  Интерактивный тренажер для изучения алфавита и базовых знаков языка жестов в доступном формате.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#10B981] opacity-0 group-hover:opacity-100 transition-all duration-300">
+                Начать обучение <ArrowRight size={14} />
+              </div>
+            </div>
+          </Link>
+        </div>
       </div>
     </div>
   );
