@@ -68,18 +68,31 @@ export default function AIPage() {
     if (typeof window !== "undefined") {
       synthRef.current = window.speechSynthesis;
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
       if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "ru-RU";
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.onstart = () => setIsListening(true);
-        recognition.onend = () => setIsListening(false);
-        recognition.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          handleSend(transcript);
-        };
-        recognitionRef.current = recognition;
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = "ru-RU";
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          
+          recognition.onstart = () => setIsListening(true);
+          recognition.onend = () => setIsListening(false);
+          
+          recognition.onerror = (event: any) => {
+            console.error("AI Voice Recognition Error:", event.error);
+            setIsListening(false);
+          };
+          
+          recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            handleSend(transcript);
+          };
+          
+          recognitionRef.current = recognition;
+        } catch (err) {
+          console.error("Failed to init AI SpeechRecognition:", err);
+        }
       }
     }
     return () => { if (synthRef.current) synthRef.current.cancel(); };

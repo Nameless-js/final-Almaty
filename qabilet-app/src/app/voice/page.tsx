@@ -13,30 +13,38 @@ export default function VoicePage() {
   const [transcript, setTranscript] = useState("Здесь появится ваша речь...");
   const [output, setOutput] = useState("Голосовой ответ появится здесь");
   const [isOutputActive, setIsOutputActive] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   const router = useRouter();
   const { ttsEnabled } = useAccessibility();
 
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
+  const processTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      synthRef.current = window.speechSynthesis;
+  const initSpeechRecognition = () => {
+    if (typeof window === "undefined" || recognitionRef.current) return;
 
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        setStatus("Браузер не поддерживает голосовой ввод");
-        return;
-      }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      setStatus("Браузер не поддерживает голосовой ввод");
+      return;
+    }
 
+    try {
       const recognition = new SpeechRecognition();
       recognition.lang = "ru-RU";
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
-      recognition.onstart = () => { setIsListening(true); setStatus("🔴 Слушаю вас..."); };
+      recognition.onstart = () => { 
+        setIsListening(true); 
+        setIsStarting(false);
+        setStatus("🔴 Слушаю вас..."); 
+      };
+
       recognition.onresult = (event: any) => {
         let interim = "", final = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -44,23 +52,61 @@ export default function VoicePage() {
           if (event.results[i].isFinal) final += trans;
           else interim += trans;
         }
+        
         const display = final || interim;
-        setTranscript(display);
-        if (final) processCommand(final.toLowerCase().trim());
+        if (display) setTranscript(display);
+
+        if (processTimeoutRef.current) clearTimeout(processTimeoutRef.current);
+        
+        if (final) {
+          processCommand(final.toLowerCase().trim());
+          recognition.stop();
+        } else if (interim) {
+          processTimeoutRef.current = setTimeout(() => {
+            processCommand(interim.toLowerCase().trim());
+            recognition.stop();
+          }, 2000);
+        }
       };
+
       recognition.onerror = (event: any) => {
         setIsListening(false);
+        setIsStarting(false);
+        if (event.error === 'aborted') {
+          setStatus("Нажмите для начала");
+          return; 
+        }
+        console.error("SpeechRecognition error:", event.error);
         const msgs: Record<string, string> = {
           "not-allowed": "Разрешите доступ к микрофону",
           "no-speech": "Речь не обнаружена",
           "network": "Ошибка сети",
+          "service-not-allowed": "Микрофон заблокирован",
         };
-        setStatus(msgs[event.error] || "Ошибка распознавания");
+        setStatus(msgs[event.error] || `Ошибка: ${event.error}`);
       };
-      recognition.onend = () => { setIsListening(false); setStatus("Нажмите для начала"); };
+
+      recognition.onend = () => { 
+        setIsListening(false); 
+        setIsStarting(false);
+        if (processTimeoutRef.current) clearTimeout(processTimeoutRef.current);
+        setStatus("Нажмите для начала"); 
+      };
 
       recognitionRef.current = recognition;
+      return recognition;
+    } catch (err) {
+      console.error("Failed to initialize SpeechRecognition:", err);
+      setStatus("Ошибка микрофона");
+      return null;
     }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      synthRef.current = window.speechSynthesis;
+    }
+    initSpeechRecognition();
     return () => { stopSpeech(); };
   }, []);
 
@@ -72,12 +118,25 @@ export default function VoicePage() {
   };
 
   const processCommand = async (text: string) => {
+    if (!text || text === "здесь появится ваша речь...") return;
+    
     logToSupabase(text, 'user');
     setIsLoading(true);
     setStatus("Обработка...");
     const lowerText = text.toLowerCase().trim();
 
-    if (lowerText.includes("открой") || lowerText.includes("перейди") || lowerText.includes("покажи")) {
+    const isNavigation = lowerText.includes("открой") || 
+                         lowerText.includes("перейди") || 
+                         lowerText.includes("покажи") || 
+                         lowerText.includes("перекинь") || 
+                         lowerText.includes("перебрось") || 
+                         lowerText.includes("верни") || 
+                         lowerText.includes("открывай") ||
+                         lowerText.includes("на главную") ||
+                         lowerText.includes("в начало") ||
+                         lowerText.includes("домой");
+
+    if (isNavigation) {
       if (lowerText.includes("обучение") || lowerText.includes("урок")) { executeNavigation("/learn", "Открываю раздел обучения. Успехов в учебе!"); return; }
       if (lowerText.includes("жест") || lowerText.includes("алфавит")) { executeNavigation("/signs", "Перехожу к разделу жестового языка."); return; }
       if (lowerText.includes("тьютор") || lowerText.includes("ии") || lowerText.includes("чат")) { executeNavigation("/ai", "Открываю ИИ-тьютора."); return; }
@@ -101,7 +160,7 @@ export default function VoicePage() {
       if (ttsEnabled) speakText(errorReply);
     } finally {
       setIsLoading(false);
-      setStatus(isListening ? "🔴 Слушаю вас..." : "Нажмите для начала");
+      setStatus("Нажмите для начала");
     }
   };
 
@@ -133,14 +192,65 @@ export default function VoicePage() {
   };
 
   const toggleVoice = () => {
-    if (!recognitionRef.current) return;
-    if (isListening) { recognitionRef.current.stop(); }
-    else { try { recognitionRef.current.start(); } catch (e) {} }
+    // 1. Immediate UI Feedback
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+      setIsListening(false);
+      setStatus("Нажмите для начала");
+      return;
+    }
+
+    if (isStarting) return;
+
+    setStatus("Инициализация...");
+    setIsStarting(true);
+
+    // 2. Watchdog timeout (reset if engine fails to start/respond in 5s)
+    const watchdog = setTimeout(() => {
+      if (isStarting && !isListening) {
+        setIsStarting(false);
+        setStatus("Тайм-аут: попробуйте еще раз");
+      }
+    }, 5000);
+
+    // 3. Lazy Init & Start
+    let recognition = recognitionRef.current;
+    if (!recognition) {
+      recognition = initSpeechRecognition();
+    }
+
+    if (!recognition) {
+      setIsStarting(false);
+      clearTimeout(watchdog);
+      setStatus("Микрофон не поддерживается");
+      return;
+    }
+
+    try {
+      recognition.start();
+    } catch (e) {
+      setIsStarting(false);
+      clearTimeout(watchdog);
+      console.error("Mic start error:", e);
+      // If already started, just sync the state
+      if (e instanceof Error && e.message.includes("already started")) {
+        setIsListening(true);
+        setStatus("🔴 Слушаю вас...");
+      } else {
+        setStatus("Ошибка запуска");
+      }
+    }
   };
 
   const stopSpeech = () => {
     if (synthRef.current) synthRef.current.cancel();
-    if (recognitionRef.current && isListening) recognitionRef.current.stop();
+    if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e) {}
+    }
+    setIsListening(false);
+    setIsStarting(false);
   };
 
   const startGreeting = () => {
@@ -189,7 +299,7 @@ export default function VoicePage() {
         <div className="relative">
           {/* Expanding rings when listening */}
           {isListening && (
-            <>
+            <div className="pointer-events-none">
               <div
                 className="absolute inset-0 rounded-full border-2 animate-ping"
                 style={{ borderColor: 'rgba(239,68,68,0.4)', animationDuration: '1.5s' }}
@@ -202,7 +312,7 @@ export default function VoicePage() {
                 className="absolute -inset-8 rounded-full border animate-ping"
                 style={{ borderColor: 'rgba(239,68,68,0.1)', animationDuration: '2.5s', animationDelay: '0.6s' }}
               />
-            </>
+            </div>
           )}
 
           <button

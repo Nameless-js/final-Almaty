@@ -7,6 +7,7 @@ import * as THREE from "three";
 
 interface SignRobotProps {
   currentWord: string | null;
+  showStatus?: boolean;
 }
 
 const WORD_TO_ANIM_MAP: Record<string, string[]> = {
@@ -38,6 +39,8 @@ const WORD_TO_ANIM_MAP: Record<string, string[]> = {
   "супер": ["robotarmature|robot_thumbsup"],
   "класс": ["robotarmature|robot_thumbsup"],
   "спасибо": ["robotarmature|robot_thumbsup"],
+  "хорошо": ["robotarmature|robot_thumbsup"],
+  "плохо": ["robotarmature|robot_no"],
   "super": ["robotarmature|robot_thumbsup"],
   "cool": ["robotarmature|robot_thumbsup"],
   "thanks": ["robotarmature|robot_thumbsup"],
@@ -88,6 +91,7 @@ function AvatarModel({ currentWord }: SignRobotProps) {
 
   const [isSigning, setIsSigning] = useState(false);
   const [activeAction, setActiveAction] = useState<THREE.AnimationAction | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Procedural Rotation State (to avoid mixer override loops)
   const procRotRef = useRef<{ [key: string]: THREE.Euler }>({
@@ -173,13 +177,11 @@ function AvatarModel({ currentWord }: SignRobotProps) {
     setIsSigning(true);
     
     let steps = 0;
-    const maxSteps = 4 + Math.floor(Math.random() * 2); 
+    const maxSteps = 1000;
     
     const nextStep = () => {
-      if (steps >= maxSteps) {
-        setTimeout(() => setIsSigning(false), 1200);
-        return;
-      }
+      // Use ref to check if we should still be running
+      if (timeoutRef.current === null) return;
 
       // Wide active ranges
       targetsRef.current.leftArm.set(Math.random() * 1.2 - 0.6, Math.random() * 1.2 - 0.6, -1.0 - Math.random() * 0.8);
@@ -191,33 +193,46 @@ function AvatarModel({ currentWord }: SignRobotProps) {
       targetsRef.current.rightHand.set(Math.random() * 1.5 - 0.7, Math.random() * 1.5 - 0.7, 0);
 
       steps++;
-      setTimeout(nextStep, 250 + Math.random() * 350); 
+      timeoutRef.current = setTimeout(nextStep, 300 + Math.random() * 400); 
     };
 
-    nextStep();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(nextStep, 10);
   };
 
   // Logic to switch animations based on word
   useEffect(() => {
-    if (!mixerRef.current || !currentWord) return;
+    // Cleanup previous procedural loop
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+    }
+
+    if (!mixerRef.current || !currentWord) {
+        setIsSigning(false);
+        return;
+    }
     const word = currentWord.toLowerCase().trim();
     const cleanWord = word.replace(/[.,!?]/g, "");
-
-    playRandomSignGesture();
 
     let targetAnimName = "";
     if (WORD_TO_ANIM_MAP[cleanWord]) {
       targetAnimName = WORD_TO_ANIM_MAP[cleanWord][0];
-    } else if (cleanWord.length > 5) {
-      targetAnimName = "robotarmature|robot_wave";
+      setIsSigning(false); 
+    } else {
+      targetAnimName = "";
+      playRandomSignGesture(); 
     }
 
-    const targetAction = actionsRef.current[targetAnimName] 
+    const targetAction = targetAnimName ? (actionsRef.current[targetAnimName] 
       || actionsRef.current['mixamo.com'] 
-      || Object.values(actionsRef.current)[0];
+      || Object.values(actionsRef.current)[0]) : null;
 
     if (targetAction && targetAction !== activeAction) {
-      targetAction.timeScale = 1.0 + Math.random() * 0.6;
+      targetAction.timeScale = 1.0;
+      targetAction.loop = THREE.LoopRepeat;
+      targetAction.clampWhenFinished = false;
+      
       if (activeAction) {
         targetAction.reset().play();
         activeAction.crossFadeTo(targetAction, 0.4, true);
@@ -225,19 +240,22 @@ function AvatarModel({ currentWord }: SignRobotProps) {
         targetAction.play();
       }
       setActiveAction(targetAction);
-
-      const duration = targetAction.getClip().duration / targetAction.timeScale;
-      const timeout = setTimeout(() => {
+    } else if (!targetAction && activeAction) {
         const idle = Object.values(actionsRef.current)[0];
-        if (idle && idle !== targetAction) {
-          idle.timeScale = 1.0;
-          targetAction.crossFadeTo(idle, 0.6, true);
-          idle.reset().play();
-          setActiveAction(idle);
+        if (idle && idle !== activeAction) {
+            idle.timeScale = 1.0;
+            activeAction.crossFadeTo(idle, 0.6, true);
+            idle.reset().play();
+            setActiveAction(idle);
         }
-      }, duration * 1000 + 200);
-      return () => clearTimeout(timeout);
     }
+
+    return () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    };
   }, [currentWord, fbx]);
 
   useFrame((state, delta) => {
@@ -262,7 +280,7 @@ function AvatarModel({ currentWord }: SignRobotProps) {
       headRef.current.rotation.x = THREE.MathUtils.lerp(headRef.current.rotation.x, targetX, 0.1);
     }
 
-    // 3. Procedural Arms (OVERRIDE Animation Mixer)
+    // 3. Procedural Arms (OVERRIDE Animation Mixer ONLY during procedural signing)
     const lerpSpeed = isSigning ? 0.25 : 0.08; 
 
     const updateProcBone = (key: string, bone: THREE.Object3D | null, target: THREE.Euler, defaultZ: number) => {
@@ -274,16 +292,17 @@ function AvatarModel({ currentWord }: SignRobotProps) {
         current.x = THREE.MathUtils.lerp(current.x, target.x, lerpSpeed);
         current.y = THREE.MathUtils.lerp(current.y, target.y, lerpSpeed);
         current.z = THREE.MathUtils.lerp(current.z, target.z, lerpSpeed);
-      } else {
-        const sway = Math.sin(time * 1.5 + (key.includes('left') ? 0 : Math.PI)) * 0.04;
-        current.x = THREE.MathUtils.lerp(current.x, mouse.y * 0.05, 0.05);
-        current.y = THREE.MathUtils.lerp(current.y, 0, 0.05);
-        current.z = THREE.MathUtils.lerp(current.z, defaultZ + sway, 0.05);
-      }
 
-      // THE HARD OVERRIDE: Apply rotation and force world matrix update
-      bone.rotation.set(current.x, current.y, current.z);
-      bone.updateMatrixWorld();
+        // ONLY override if signing
+        bone.rotation.set(current.x, current.y, current.z);
+        bone.updateMatrixWorld();
+      } else {
+        // When using baked animation, we reset the procRotRef but DON'T override bone.rotation
+        // This allows the AnimationMixer to control the bones fully
+        current.x = THREE.MathUtils.lerp(current.x, 0, 0.1);
+        current.y = THREE.MathUtils.lerp(current.y, 0, 0.1);
+        current.z = THREE.MathUtils.lerp(current.z, defaultZ, 0.1);
+      }
     };
 
     updateProcBone('leftArm', leftArmRef.current, targetsRef.current.leftArm, -0.1);
@@ -293,11 +312,6 @@ function AvatarModel({ currentWord }: SignRobotProps) {
     updateProcBone('rightArm', rightArmRef.current, targetsRef.current.rightArm, 0.1);
     updateProcBone('rightForeArm', rightForeArmRef.current, targetsRef.current.rightForeArm, 0);
     updateProcBone('rightHand', rightHandRef.current, targetsRef.current.rightHand, 0);
-
-    // Debug Log
-    if (isSigning && rightArmRef.current && Math.random() > 0.98) {
-      console.log("🦾 Override Active:", rightArmRef.current.rotation.x.toFixed(2));
-    }
 
     if (groupRef.current && currentWord) {
       groupRef.current.rotation.y = Math.sin(time * 2) * 0.03;
@@ -334,7 +348,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode, fallbac
   render() { return this.state.hasError ? this.props.fallback : this.props.children; }
 }
 
-export default function SignRobot({ currentWord }: SignRobotProps) {
+export default function SignRobot({ currentWord, showStatus = true }: SignRobotProps) {
   return (
     <div className="w-full h-full bg-gradient-to-b from-[var(--bg-card)]/30 to-black/90 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl relative">
       <Canvas shadows camera={{ position: [0, 0.8, 2.5], fov: 35 }}>
@@ -352,14 +366,16 @@ export default function SignRobot({ currentWord }: SignRobotProps) {
         <OrbitControls enableZoom={false} enablePan={false} minPolarAngle={Math.PI/2.5} maxPolarAngle={Math.PI/2} />
       </Canvas>
       
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-        <div className="px-3 py-1 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${currentWord ? 'bg-green-500 animate-pulse' : 'bg-white/20'}`} />
-          <p className="text-[7px] font-black text-white/60 uppercase tracking-[0.3em]">AI Interpreter Active</p>
+      {showStatus && (
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+          <div className="px-3 py-1 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${currentWord ? 'bg-green-500 animate-pulse' : 'bg-white/20'}`} />
+            <p className="text-[7px] font-black text-white/60 uppercase tracking-[0.3em]">AI Interpreter Active</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {currentWord && (
+      {showStatus && currentWord && (
         <div className="absolute bottom-4 inset-x-4 animate-in slide-in-from-bottom-2 duration-500">
           <div className="bg-[#6C3AE8]/20 backdrop-blur-2xl border border-[#6C3AE8]/40 p-3 rounded-2xl text-center shadow-[0_0_30px_rgba(108,58,232,0.3)]">
             <p className="text-[10px] text-[#A78BFA] font-black uppercase tracking-widest mb-1">Распознано слово</p>
@@ -370,3 +386,4 @@ export default function SignRobot({ currentWord }: SignRobotProps) {
     </div>
   );
 }
+

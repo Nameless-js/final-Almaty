@@ -72,19 +72,10 @@ export const AI_RESPONSES: Record<string, string> = {
 
 export const SIGNS_DATA = [
   { emoji: '👋', word: 'Привет', description: 'Помашите рукой в сторону собеседника', category: 'greeting' },
-  { emoji: '🙏', word: 'Пожалуйста', description: 'Сложите ладони вместе', category: 'greeting' },
+  { emoji: '✅', word: 'Да', description: 'Утвердительно кивните головой', category: 'basic' },
+  { emoji: '❌', word: 'Нет', description: 'Покачайте головой из стороны в сторону', category: 'basic' },
   { emoji: '👍', word: 'Хорошо', description: 'Поднимите большой палец вверх', category: 'basic' },
   { emoji: '👎', word: 'Плохо', description: 'Опустите большой палец вниз', category: 'basic' },
-  { emoji: '❤️', word: 'Люблю', description: 'Прижмите кулак к сердцу', category: 'emotion' },
-  { emoji: '🤟', word: 'Я тебя люблю', description: 'Комбинация I-L-Y одной рукой', category: 'emotion' },
-  { emoji: '✌️', word: 'Мир', description: 'Поднимите указательный и средний пальцы', category: 'basic' },
-  { emoji: '🤝', word: 'Договорились', description: 'Сцепите руки в рукопожатии', category: 'greeting' },
-  { emoji: '🙋', word: 'Я', description: 'Укажите на себя указательным пальцем', category: 'basic' },
-  { emoji: '👉', word: 'Ты', description: 'Укажите на собеседника пальцем', category: 'basic' },
-  { emoji: '🤔', word: 'Вопрос', description: 'Согните указательный палец знаком вопроса', category: 'basic' },
-  { emoji: '🛑', word: 'Стоп', description: 'Поднимите ладонь вперёд', category: 'basic' },
-  { emoji: '😊', word: 'Счастье', description: 'Обе ладони поднимите к щекам', category: 'emotion' },
-  { emoji: '😢', word: 'Грусть', description: 'Проведите пальцами по щекам сверху вниз', category: 'emotion' },
 ];
 
 export const ALPHABET_DATA = [

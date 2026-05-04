@@ -6,6 +6,7 @@ import { HandMetal, Camera, Book, Search, Video, X, Info, Hand, Download } from 
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
 import { getGesturesLibrary, seedGestures, saveGesturePattern } from "@/app/actions";
 import SignAvatar from "@/components/SignAvatar";
+import SignRobot from "@/components/SignRobot";
 
 // MediaPipe types (simplified for usage)
 type HandLandmark = { x: number; y: number; z: number };
@@ -657,34 +658,10 @@ export default function SignsPage() {
               
               <div className="relative z-0 flex flex-col items-center w-full px-8">
                 <div className="w-full aspect-video bg-[var(--bg-card)] rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-2 border-[var(--border-color)] relative overflow-hidden">
-                  {selectedSign.isLetter ? (
-                    <div className="w-full h-full relative p-4 bg-[var(--surface)] border border-[var(--border-color)] rounded-xl">
-                      <Image 
-                        src={`/images/alphabet/${selectedSign.slug}.png`}
-                        alt={selectedSign.word}
-                        fill
-                        className="object-contain p-6 drop-shadow-xl z-10 relative"
-                        style={{ filter: 'invert(1) contrast(1.2)', mixBlendMode: 'screen', opacity: 0.9 }}
-                        onLoad={(e) => {
-                          const target = e.target as HTMLElement;
-                          const sibling = target.nextElementSibling as HTMLElement;
-                          if (sibling) sibling.style.display = 'none';
-                        }}
-                        onError={(e) => {
-                          const target = e.target as any;
-                          target.style.display = 'none';
-                          const sibling = target.nextElementSibling as HTMLElement;
-                          if (sibling) sibling.style.display = 'flex';
-                        }}
-                      />
-                      <span className="absolute inset-0 flex items-center justify-center text-[120px] font-black text-[var(--color-primary)] opacity-10 z-0">{selectedSign.word.split(' ')[1]}</span>
-                    </div>
-                  ) : (
-                    <SignAvatar 
-                      currentWord={selectedSign.word} 
-                      className="w-full h-full border-none shadow-none" 
-                    />
-                  )}
+                  <SignRobot 
+                    currentWord={selectedSign.isLetter ? selectedSign.word.split(' ')[1] : selectedSign.word} 
+                    showStatus={false}
+                  />
                 </div>
                 <div className="px-4 py-1 bg-[var(--color-primary)] text-white text-[10px] font-bold rounded-full uppercase tracking-tighter">
                   {selectedSign.isLetter ? 'Дактилология' : selectedSign.category || 'Жест'}
