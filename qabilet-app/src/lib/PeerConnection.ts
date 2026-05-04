@@ -30,10 +30,22 @@ export class PeerConnection {
   }
 
   private initPeer() {
-    const myId = `qabilet-${this.roomCode}-${this.isCreator ? 'creator' : 'joiner'}`;
+    // Joiner ID can be random to avoid conflicts, only Creator ID needs to be predictable
+    const randomSuffix = Math.floor(Math.random() * 1000).toString();
+    const myId = this.isCreator 
+      ? `qabilet-${this.roomCode}-creator` 
+      : `qabilet-${this.roomCode}-joiner-${randomSuffix}`;
+    
     const otherId = `qabilet-${this.roomCode}-${this.isCreator ? 'joiner' : 'creator'}`;
 
-    this.peer = new Peer(myId);
+    console.log(`Initializing Peer with ID: ${myId}`);
+    this.peer = new Peer(myId, {
+      debug: 1 // Only errors
+    });
+
+    // Cleanup on window close
+    const cleanup = () => this.destroy();
+    window.addEventListener('beforeunload', cleanup);
 
     this.peer.on("open", (id) => {
       console.log("My peer ID is: " + id);
@@ -42,7 +54,7 @@ export class PeerConnection {
       if (!this.isCreator) {
         // As a joiner, we try to connect to the creator
         // Give it a small delay to ensure creator is ready
-        setTimeout(() => this.connectToOther(otherId), 1000);
+        setTimeout(() => this.connectToOther(`qabilet-${this.roomCode}-creator`), 1000);
       }
     });
 
@@ -58,20 +70,27 @@ export class PeerConnection {
     });
 
     this.peer.on("error", (err) => {
-      console.error("PeerJS error:", err);
+      console.error("PeerJS error:", err.type, err);
+      
       if (err.type === 'peer-disconnected') {
-        this.onStatus("Peer disconnected. Reconnecting...");
-        this.peer?.reconnect();
+        this.onStatus("Peer disconnected.");
       } else if (err.type === 'network') {
-        this.onStatus("Network error. Checking connection...");
+        this.onStatus("Network error.");
+      } else if (err.type === 'unavailable-id') {
+        this.onStatus("ID taken. Please refresh or wait 5s.");
+      } else if (err.type === 'peer-unavailable') {
+        this.onStatus("Creator not found. Check code.");
       } else {
-        this.onStatus("Error: " + err.type);
+        this.onStatus("Connection error: " + err.type);
       }
     });
 
     this.peer.on("disconnected", () => {
-      this.onStatus("Disconnected. Attempting to reconnect...");
-      this.peer?.reconnect();
+      this.onStatus("Disconnected.");
+      // Attempt reconnection if not destroyed
+      if (this.peer && !this.peer.destroyed) {
+        this.peer.reconnect();
+      }
     });
   }
 

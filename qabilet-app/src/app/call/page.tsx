@@ -236,6 +236,7 @@ export default function CallPage() {
   };
 
   const startSpeechToText = () => {
+    if (isListening) return;
     if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const recognition = new SpeechRecognition();
@@ -253,9 +254,11 @@ export default function CallPage() {
       };
 
       recognition.onerror = (event: any) => {
-        if (event.error === "no-speech") return; // Ignore no-speech timeout
-        console.error("❌ Speech recognition error:", event.error);
-        if (event.error === "not-allowed") {
+        const error = event.error;
+        if (error === "no-speech" || error === "aborted" || (typeof error === 'string' && error.includes('abort'))) return;
+        
+        console.error("❌ Speech recognition error:", error);
+        if (error === "not-allowed") {
            alert("Доступ к микрофону запрещен. Пожалуйста, разрешите доступ к микрофону в настройках браузера для распознавания речи.");
         }
         setIsListening(false);
@@ -288,11 +291,27 @@ export default function CallPage() {
 
   const stopSpeechToText = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.onend = null; // Disable restart loop
+        recognitionRef.current.stop();
+      } catch (e) {}
       recognitionRef.current = null;
     }
     setIsListening(false);
   };
+
+  useEffect(() => {
+    return () => {
+      stopSpeechToText();
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (handsRef.current) {
+        try {
+          handsRef.current.close();
+        } catch (e) {}
+        handsRef.current = null;
+      }
+    };
+  }, []);
 
   const startDetectionLoop = () => {
     const process = async () => {
@@ -334,6 +353,13 @@ export default function CallPage() {
   };
 
   const startCall = async (isCreator: boolean = true, selectedRole: UserRole) => {
+    // Cleanup existing connection if any
+    if (peerConnRef.current) {
+      console.log("Cleaning up existing connection before starting new one...");
+      peerConnRef.current.destroy();
+      peerConnRef.current = null;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -593,42 +619,29 @@ export default function CallPage() {
           {/* Main View Area */}
           <div className="relative flex-1 rounded-[3rem] overflow-hidden bg-black border border-[var(--border-color)] shadow-2xl min-h-[500px]">
             
-            {/* Hearing Mode: 3D Robot as Main View */}
-            {role === "hearing" && (
-              <div className="absolute inset-0 z-0">
-                <SignRobot currentWord={recognizedText || peerText} />
-              </div>
-            )}
-
-            {/* Remote Video (Full Screen if not hearing mode or if hearing mode shows mute peer) */}
-            <div className={`absolute inset-0 ${role === "hearing" ? 'z-0' : 'z-0'}`}>
-              {(role === "mute" || !peerText) ? (
-                remoteStream ? (
-                  <video 
-                    ref={remoteVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    onLoadedMetadata={(e) => e.currentTarget.play()}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[var(--bg-card2)]">
-                    <div className="w-32 h-32 bg-[var(--bg-card)] rounded-full flex items-center justify-center mb-4 border border-[var(--border-color)] animate-pulse">
-                      <UserPlus size={48} className="text-[var(--text-muted)]" />
-                    </div>
-                    <p className="text-[var(--text-secondary)] font-bold">Ожидание собеседника...</p>
-                    <p className="text-sm text-[var(--text-muted)] mt-2">Код комнаты: {roomCode}</p>
+            {/* Remote Video (Main View) */}
+            <div className="absolute inset-0 z-0 bg-black">
+              {remoteStream ? (
+                <video 
+                  ref={remoteVideoRef} 
+                  autoPlay 
+                  playsInline 
+                  onLoadedMetadata={(e) => e.currentTarget.play()}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[var(--bg-card2)]">
+                  <div className="w-32 h-32 bg-[var(--bg-card)] rounded-full flex items-center justify-center mb-4 border border-[var(--border-color)] animate-pulse">
+                    <UserPlus size={48} className="text-[var(--text-muted)]" />
                   </div>
-                )
-              ) : null}
+                  <p className="text-[var(--text-secondary)] font-bold">Ожидание собеседника...</p>
+                  <p className="text-sm text-[var(--text-muted)] mt-2">Код комнаты: {roomCode}</p>
+                </div>
+              )}
             </div>
-
-            {/* Local Video (Small View for hearing, Large if mute and no remote) */}
-            <div className={`absolute transition-all duration-500 z-20 overflow-hidden shadow-2xl border-2 border-white/20
-              ${role === "mute" 
-                ? 'inset-0 border-0 rounded-0' 
-                : 'top-6 right-6 w-48 aspect-video md:w-64 rounded-2xl'}`}
-            >
+            
+            {/* Local Video (PiP) */}
+            <div className={`absolute top-6 right-6 w-48 aspect-video md:w-64 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 z-20 transition-all`}>
                 <video 
                   ref={localVideoRef} 
                   autoPlay 
@@ -653,26 +666,12 @@ export default function CallPage() {
               </div>
             </div>
 
-            {/* Mute Mode: Show Remote Video in small window if role is mute */}
-            {role === "mute" && remoteStream && (
-              <div className="absolute bottom-6 right-6 w-48 aspect-video md:w-64 bg-black rounded-2xl border-2 border-white/20 shadow-2xl overflow-hidden z-20 group transition-all hover:scale-105">
-                <video 
-                  autoPlay 
-                  playsInline 
-                  className="w-full h-full object-cover"
-                  ref={(el) => { if(el) el.srcObject = remoteStream; }}
-                />
+            {/* 3D Robot Assistant (Always in the corner as an overlay) */}
+            <div className="absolute top-24 left-6 w-48 md:w-64 aspect-square z-20 pointer-events-none group">
+              <div className="w-full h-full transform transition-all duration-500 hover:scale-110">
+                <SignRobot currentWord={recognizedText || peerText} />
               </div>
-            )}
-
-            {/* Mute Mode: 3D Robot visualizes my outgoing speech/gestures for confirmation */}
-            {role === "mute" && (
-              <div className="absolute top-24 left-6 w-48 md:w-56 aspect-square z-20 pointer-events-none group">
-                <div className="w-full h-full transform transition-transform hover:scale-110">
-                  <SignRobot currentWord={recognizedText || peerText} />
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Subtitles / Translation Overlay (Hearing Mode: shows gestures from mute peer) */}
             {role === "hearing" && peerText && (
