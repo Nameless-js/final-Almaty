@@ -23,6 +23,7 @@ import {
 import { SIGNS_DATA } from "@/lib/data";
 import { PeerConnection } from "@/lib/PeerConnection";
 import { getGesturesLibrary } from "@/app/actions";
+import { useLanguage } from "@/components/LanguageProvider";
 
 type CallState = "idle" | "selecting_role" | "creating" | "joining" | "connected";
 type UserRole = "mute" | "hearing";
@@ -56,6 +57,7 @@ export default function CallPage() {
   const drawingModuleRef = useRef<any>(null);
   const handsModuleRef = useRef<any>(null);
   const [isListening, setIsListening] = useState(false);
+  const { t } = useLanguage();
 
   // Load gestures library
   useEffect(() => {
@@ -451,7 +453,7 @@ export default function CallPage() {
               <Video className="text-white" size={40} />
             </div>
             <h1 className="text-4xl font-black gradient-text">Qabilet Video</h1>
-            <p className="text-[var(--text-secondary)]">Связь без границ: видеозвонки с сурдопереводом</p>
+            <p className="text-[var(--text-secondary)]">{t('call_subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -463,8 +465,8 @@ export default function CallPage() {
                 <Plus size={24} />
               </div>
               <div className="text-left">
-                <p className="font-bold text-lg">Создать звонок</p>
-                <p className="text-xs text-[var(--text-muted)]">Получить код для приглашения</p>
+                <p className="font-bold text-lg">{t('call_create')}</p>
+                <p className="text-xs text-[var(--text-muted)]">{t('call_get_code')}</p>
               </div>
             </button>
 
@@ -476,8 +478,8 @@ export default function CallPage() {
                 <UserPlus size={24} />
               </div>
               <div className="text-left">
-                <p className="font-bold text-lg">Присоединиться</p>
-                <p className="text-xs text-[var(--text-muted)]">Введите 4-значный код</p>
+                <p className="font-bold text-lg">{t('call_join')}</p>
+                <p className="text-xs text-[var(--text-muted)]">{t('call_enter_code_desc')}</p>
               </div>
             </button>
           </div>
@@ -487,8 +489,8 @@ export default function CallPage() {
       {state === "selecting_role" && (
         <div className="max-w-md w-full space-y-8 animate-in fade-in zoom-in duration-500">
           <div className="text-center space-y-4">
-            <h2 className="text-2xl font-black">Выберите вашу роль</h2>
-            <p className="text-[var(--text-secondary)]">Настроим интерфейс под ваши задачи</p>
+            <h2 className="text-2xl font-black">{t('call_role_title')}</h2>
+            <p className="text-[var(--text-secondary)]">{t('call_role_sub')}</p>
           </div>
           <div className="grid grid-cols-1 gap-4">
             <button 
@@ -499,9 +501,9 @@ export default function CallPage() {
                 <div className="w-10 h-10 bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-xl flex items-center justify-center">
                   <Sparkles size={20} />
                 </div>
-                <p className="font-bold text-lg">Я использую жесты</p>
+                <p className="font-bold text-lg">{t('call_role_mute')}</p>
               </div>
-              <p className="text-xs text-[var(--text-muted)]">Система будет переводить ваши жесты в текст для собеседника</p>
+              <p className="text-xs text-[var(--text-muted)]">{t('call_role_mute_desc')}</p>
             </button>
             <button 
               onClick={() => { setRole("hearing"); startCall(!inputCode, "hearing"); }}
@@ -511,9 +513,9 @@ export default function CallPage() {
                 <div className="w-10 h-10 bg-[var(--color-primary-light)]/10 text-[var(--color-primary-light)] rounded-xl flex items-center justify-center">
                   <Mic size={20} />
                 </div>
-                <p className="font-bold text-lg">Я слушаю/смотрю</p>
+                <p className="font-bold text-lg">{t('call_role_hearing')}</p>
               </div>
-              <p className="text-xs text-[var(--text-muted)]">Вы увидите 3D-ассистента, который визуализирует жесты собеседника</p>
+              <p className="text-xs text-[var(--text-muted)]">{t('call_role_hearing_desc')}</p>
             </button>
           </div>
         </div>
@@ -522,7 +524,7 @@ export default function CallPage() {
       {state === "creating" && (
         <div className="max-w-md w-full space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-8 rounded-[3rem] shadow-2xl text-center space-y-6">
-            <h2 className="text-2xl font-black">Ваш код звонка</h2>
+            <h2 className="text-2xl font-black">{t('call_your_code')}</h2>
             <div className="flex items-center justify-center gap-4 py-8 bg-[var(--surface)] rounded-[2rem] border-2 border-dashed border-[var(--border-color)]">
               {roomCode.split('').map((digit, i) => (
                 <div key={i} className="w-12 h-16 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl flex items-center justify-center text-3xl font-black text-[var(--color-primary)] shadow-sm">
@@ -536,21 +538,21 @@ export default function CallPage() {
                 className="flex-1 py-4 bg-[var(--bg-card2)] border border-[var(--border-color)] rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[var(--surface)] transition-all"
               >
                 {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
-                {copied ? "Скопировано" : "Копировать код"}
+                {copied ? t('call_copied') : t('call_copy')}
               </button>
               <button 
                 onClick={() => setState("selecting_role")}
                 className="flex-[1.5] py-4 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[var(--color-primary)]/30 transition-all active:scale-95"
               >
                 <Video size={20} />
-                Выбрать роль
+                {t('call_select_role')}
               </button>
             </div>
-            <button 
+              <button 
               onClick={() => setState("idle")}
               className="text-[var(--text-muted)] font-semibold hover:text-[var(--text-primary)] transition-colors"
             >
-              Отмена
+              {t('call_cancel')}
             </button>
           </div>
         </div>
@@ -559,7 +561,7 @@ export default function CallPage() {
       {state === "joining" && (
         <div className="max-w-md w-full space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-8 rounded-[3rem] shadow-2xl text-center space-y-6">
-            <h2 className="text-2xl font-black">Введите код</h2>
+            <h2 className="text-2xl font-black">{t('call_enter_code')}</h2>
             <div className="flex justify-center gap-3">
               {[0, 1, 2, 3].map((i) => (
                 <input
@@ -601,13 +603,13 @@ export default function CallPage() {
               }`}
             >
               <UserPlus size={24} />
-              Присоединиться к комнате
+              {t('call_join_room')}
             </button>
             <button 
               onClick={() => setState("idle")}
               className="text-[var(--text-muted)] font-semibold hover:text-[var(--text-primary)] transition-colors"
             >
-              Назад
+              {t('call_back')}
             </button>
           </div>
         </div>
@@ -633,8 +635,8 @@ export default function CallPage() {
                   <div className="w-32 h-32 bg-[var(--bg-card)] rounded-full flex items-center justify-center mb-4 border border-[var(--border-color)] animate-pulse">
                     <UserPlus size={48} className="text-[var(--text-muted)]" />
                   </div>
-                  <p className="text-[var(--text-secondary)] font-bold">Ожидание собеседника...</p>
-                  <p className="text-sm text-[var(--text-muted)] mt-2">Код комнаты: {roomCode}</p>
+                  <p className="text-[var(--text-secondary)] font-bold">{t('call_waiting')}</p>
+                  <p className="text-sm text-[var(--text-muted)] mt-2">{t('call_room_code')} {roomCode}</p>
                 </div>
               )}
             </div>
@@ -723,7 +725,7 @@ export default function CallPage() {
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-4 rounded-[2.5rem] shadow-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="hidden md:block">
-                <p className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest px-4">Код комнаты: {roomCode}</p>
+                <p className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest px-4">{t('call_room_code')} {roomCode}</p>
               </div>
             </div>
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Video, Info, Hand, AlertCircle, Sparkles } from "lucide-react";
 import { getGesturesLibrary } from "@/app/actions";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function GesturesPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -13,6 +14,7 @@ export default function GesturesPage() {
   const [gesturesLibrary, setGesturesLibrary] = useState<any[]>([]);
   const [recognizedWord, setRecognizedWord] = useState<string | null>(null);
   const [detectedLetter, setDetectedLetter] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const libraryRef = useRef<any[]>([]);
   const lastLandmarksRef = useRef<any>(null);
@@ -194,8 +196,8 @@ export default function GesturesPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 relative z-10 pt-2">
         <div>
           <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-2">AI визия</p>
-          <h2 className="font-display text-3xl md:text-4xl font-black mb-1">Переводчик <span className="gradient-text">жестов</span></h2>
-          <p className="text-[var(--text-secondary)] text-sm">Интеллектуальная система распознавания жестового языка</p>
+          <h2 className="font-display text-3xl md:text-4xl font-black mb-1">{t('gestures_title').split(' ')[0]} <span className="gradient-text">{t('gestures_title').split(' ').slice(1).join(' ')}</span></h2>
+          <p className="text-[var(--text-secondary)] text-sm">{t('gestures_subtitle')}</p>
         </div>
         <div
           className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl transition-all duration-500 shrink-0"

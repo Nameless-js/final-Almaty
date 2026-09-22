@@ -6,6 +6,7 @@ import { AI_RESPONSES } from "@/lib/data";
 import { logChatMessage, getChatHistory, getGesturesLibrary, seedGestures } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
 import { useAccessibility } from "@/components/AccessibilityProvider";
+import { useLanguage } from "@/components/LanguageProvider";
 import SignAvatar from "@/components/SignAvatar";
 
 interface Message {
@@ -36,6 +37,7 @@ export default function AIPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { ttsEnabled } = useAccessibility();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const loadLibrary = async () => {
@@ -177,14 +179,16 @@ export default function AIPage() {
     }
   };
 
-  const suggestions = ['Объясни мне дроби', 'Что такое фотосинтез?', 'Помоги с алфавитом', 'Расскажи сказку'];
+  const suggestions = [t('ai_sug1'), t('ai_sug2'), t('ai_sug3'), t('ai_sug4')];
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto animate-in slide-in-from-bottom-4 duration-500 relative">
 
       {/* Sign Avatar overlay */}
       <div className="fixed top-24 right-8 z-30 w-64 group">
-        <SignAvatar currentWord={activeWord} className="shadow-2xl" style={{ border: '2px solid rgba(124,58,237,0.5)', borderRadius: '20px' }} />
+        <div className="rounded-[20px] overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(124,58,237,0.5)' }}>
+          <SignAvatar currentWord={activeWord} className="w-full" />
+        </div>
         {activeWord && (
           <button
             onClick={() => setActiveWord(null)}
@@ -219,10 +223,10 @@ export default function AIPage() {
               <BrainCircuit size={24} className="text-white" />
             </div>
             <div>
-              <h2 className="font-display text-lg font-bold">ИИ-Тьютор</h2>
+              <h2 className="font-display text-lg font-bold">{t('ai_title')}</h2>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-xs text-[var(--text-muted)] font-medium">Онлайн · Готов помочь</p>
+                <p className="text-xs text-[var(--text-muted)] font-medium">{t('ai_online')}</p>
               </div>
             </div>
           </div>
@@ -239,7 +243,7 @@ export default function AIPage() {
               }}
             >
               <RefreshCw size={12} className={isSeeding ? "animate-spin" : ""} />
-              {isSeeding ? "Синхронизация..." : "Синхронизировать базу"}
+              {isSeeding ? t('ai_syncing') : t('ai_sync')}
             </button>
           )}
         </div>
@@ -264,7 +268,7 @@ export default function AIPage() {
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={15} className="text-[var(--color-primary-light)]" />
             <h3 className="font-semibold text-xs uppercase tracking-widest text-[var(--color-primary-light)]">
-              Анализ успеваемости
+              {t('ai_analytics')}
             </h3>
           </div>
 
@@ -284,7 +288,7 @@ export default function AIPage() {
             ))}
           </div>
           <p className="text-[10px] text-[var(--text-muted)] mt-2 text-right font-medium">
-            +15% продуктивности на этой неделе
+            {t('ai_productivity')}
           </p>
         </div>
       </div>
@@ -450,7 +454,7 @@ export default function AIPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={isListening ? "Слушаю..." : "Задайте вопрос..."}
+              placeholder={isListening ? t('ai_listening') : t('ai_placeholder')}
               className="flex-1 px-4 py-3 rounded-xl outline-none text-sm transition-all duration-200"
               style={{
                 background: 'var(--bg-card)',

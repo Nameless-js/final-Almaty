@@ -6,6 +6,7 @@ import { HandMetal, Camera, Book, Search, Video, X, Info, Hand, Download } from 
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
 import { getGesturesLibrary, seedGestures, saveGesturePattern } from "@/app/actions";
 import SignAvatar from "@/components/SignAvatar";
+import { useLanguage } from "@/components/LanguageProvider";
 
 // MediaPipe types (simplified for usage)
 type HandLandmark = { x: number; y: number; z: number };
@@ -23,6 +24,7 @@ export default function SignsPage() {
   const [detectedLetter, setDetectedLetter] = useState<string | null>(null);
   const [recognizedWord, setRecognizedWord] = useState<string | null>(null);
   const [gesturesLibrary, setGesturesLibrary] = useState<any[]>([]);
+  const { t } = useLanguage();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -344,9 +346,9 @@ export default function SignsPage() {
           </div>
         </div>
         <h2 className="font-display text-3xl md:text-4xl font-black mb-2">
-          Жестовый <span className="gradient-text">язык</span>
+          {t('signs_title').split(' ')[0]} <span className="gradient-text">{t('signs_title').split(' ').slice(1).join(' ')}</span>
         </h2>
-        <p className="text-[var(--text-secondary)]">Переводчик и обучение жестам в реальном времени</p>
+        <p className="text-[var(--text-secondary)]">{t('signs_subtitle')}</p>
       </div>
 
       {/* Tab switcher */}
@@ -361,9 +363,9 @@ export default function SignsPage() {
         }}
       >
         {[
-          { id: 'dictionary' as Tab, label: 'Словарь', icon: Book, action: () => { setActiveTab('dictionary'); stopCamera(); } },
-          { id: 'alphabet' as Tab, label: 'Алфавит', icon: HandMetal, action: () => { setActiveTab('alphabet'); stopCamera(); } },
-          { id: 'camera' as Tab, label: 'Камера', icon: Camera, action: () => setActiveTab('camera') },
+          { id: 'dictionary' as Tab, label: t('signs_words'), icon: Book, action: () => { setActiveTab('dictionary'); stopCamera(); } },
+          { id: 'alphabet' as Tab, label: t('signs_alphabet'), icon: HandMetal, action: () => { setActiveTab('alphabet'); stopCamera(); } },
+          { id: 'camera' as Tab, label: t('signs_camera'), icon: Camera, action: () => setActiveTab('camera') },
         ].map(({ id, label, icon: Icon, action }) => (
           <button
             key={id}
@@ -387,7 +389,7 @@ export default function SignsPage() {
         <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--text-muted)' }} />
         <input
           type="text"
-          placeholder={activeTab === "alphabet" ? "Поиск буквы..." : "Поиск жеста..."}
+          placeholder={activeTab === "alphabet" ? t('signs_search') : t('signs_search')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full py-4 pl-12 pr-4 outline-none text-sm transition-all duration-200 placeholder:italic"

@@ -148,15 +148,21 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
         hoverTimer = setTimeout(() => {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(text);
-          // Try to get lang from googtrans cookie or fallback to Russian
-          const match = document.cookie.match(/(?:^|; )googtrans=([^;]*)/);
+          // Check local storage for the chosen language
           let lang = 'ru-RU';
-          if (match) {
-            const val = decodeURIComponent(match[1]);
-            if (val.includes('/en')) lang = 'en-US';
-            else if (val.includes('/kk')) lang = 'kk-KZ';
-          }
+          const savedLang = localStorage.getItem('qabilet_lang');
+          if (savedLang === 'en') lang = 'en-US';
+          else if (savedLang === 'kk') lang = 'kk-KZ';
+          
           utterance.lang = lang;
+          
+          // Try to explicitly set a matching voice for better accents
+          const voices = window.speechSynthesis.getVoices();
+          const voice = voices.find(v => v.lang.startsWith(lang.substring(0, 2)));
+          if (voice) {
+            utterance.voice = voice;
+          }
+          
           window.speechSynthesis.speak(utterance);
         }, 500); // 500ms hover delay to prevent spamming
       }

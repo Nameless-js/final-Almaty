@@ -4,19 +4,21 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Mic, HandMetal, BrainCircuit, Menu, X, BookOpen, Zap, Video } from "lucide-react";
+import { useLanguage } from "./LanguageProvider";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Главная", icon: Home },
-  { href: "/learn", label: "Обучение", icon: BookOpen },
-  { href: "/voice", label: "Помощник", icon: Mic },
-  { href: "/signs", label: "Жесты", icon: HandMetal },
-  { href: "/call", label: "Звонок", icon: Video },
-  { href: "/ai", label: "ИИ-Тьютор", icon: BrainCircuit },
+  { href: "/",       labelKey: "nav_home"  as const, icon: Home },
+  { href: "/learn",  labelKey: "nav_learn" as const, icon: BookOpen },
+  { href: "/voice",  labelKey: "nav_voice" as const, icon: Mic },
+  { href: "/signs",  labelKey: "nav_signs" as const, icon: HandMetal },
+  { href: "/call",   labelKey: "nav_call"  as const, icon: Video },
+  { href: "/ai",     labelKey: "nav_ai"    as const, icon: BrainCircuit },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useLanguage();
 
   return (
     <>
@@ -126,7 +128,7 @@ export function Sidebar() {
                     className="transition-transform duration-300 group-hover:scale-110"
                   />
                 </div>
-                <span className="transition-colors duration-200">{item.label}</span>
+                <span className="transition-colors duration-200">{t(item.labelKey)}</span>
                 {isActive && (
                   <div
                     className="ml-auto w-1.5 h-1.5 rounded-full"

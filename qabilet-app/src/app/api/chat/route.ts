@@ -45,7 +45,7 @@ async function callGroqFallback(message: string, history: any[]) {
       "Authorization": `Bearer ${groqApiKey}`
     },
     body: JSON.stringify({
-      model: "llama3-8b-8192",
+      model: "openai/gpt-oss-20b",
       messages: messages,
       temperature: 0.7,
       max_tokens: 500,
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     const { message, history } = await req.json();
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
       // Format history for Gemini
       const formattedHistory = history?.map((msg: any) => ({

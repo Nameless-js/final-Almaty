@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getCourses, getUserProgress, getLessons, getAIActivityCount, getLastStudiedLesson, getCommunityCourses } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function LearnPage() {
   const [courses, setCourses] = useState<any[]>([]);
@@ -23,6 +24,7 @@ export default function LearnPage() {
   const [communityCourses, setCommunityCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { t } = useLanguage();
 
   const getYoutubeId = (url: string) => {
     if (!url) return null;
@@ -119,12 +121,12 @@ export default function LearnPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10 pt-2">
         <div>
           <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-2">
-            Личный кабинет
+            {t('learn_dashboard')}
           </p>
           <h2 className="font-display text-4xl md:text-5xl font-black leading-tight">
-            Обучение
+            {t('learn_title')}
           </h2>
-          <p className="text-[var(--text-secondary)] mt-2">Ваша статистика и прогресс</p>
+          <p className="text-[var(--text-secondary)] mt-2">{t('learn_subtitle')}</p>
         </div>
 
         {/* Level Badge */}
@@ -146,8 +148,8 @@ export default function LearnPage() {
             <Award size={22} className="text-amber-400" />
           </div>
           <div>
-            <div className="text-[10px] font-bold text-amber-500/70 uppercase tracking-widest">Уровень</div>
-            <div className="text-base font-bold text-amber-300">Начинающий</div>
+            <div className="text-[10px] font-bold text-amber-500/70 uppercase tracking-widest">{t('learn_level')}</div>
+            <div className="text-base font-bold text-amber-300">{t('learn_beginner')}</div>
           </div>
         </div>
       </div>
@@ -176,10 +178,10 @@ export default function LearnPage() {
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-white/70 font-semibold text-xs uppercase tracking-widest mb-3">
               <TrendingUp size={14} />
-              Активность ИИ
+              {t('learn_ai_activity')}
             </div>
             <div className="text-5xl font-black text-white mb-1">{activityCount}</div>
-            <p className="text-white/60 text-xs font-medium">сообщений отправлено сегодня</p>
+            <p className="text-white/60 text-xs font-medium">{t('learn_msgs_today')}</p>
           </div>
         </div>
 
@@ -214,7 +216,7 @@ export default function LearnPage() {
             >
               <History size={18} className="text-[var(--color-primary-light)]" />
             </div>
-            <h3 className="font-bold text-base text-[var(--text-primary)]">Последний изученный материал</h3>
+            <h3 className="font-bold text-base text-[var(--text-primary)]">{t('learn_last_lesson')}</h3>
           </div>
 
           {lastLesson ? (
@@ -223,7 +225,7 @@ export default function LearnPage() {
                 <h4 className="font-bold text-xl mb-1 text-[var(--text-primary)]">
                   {lastLesson.lessons.title}
                 </h4>
-                <p className="text-sm text-[var(--text-muted)]">Нажмите, чтобы продолжить</p>
+                <p className="text-sm text-[var(--text-muted)]">{t('learn_click_continue')}</p>
               </div>
               <Link
                 href={`/courses/${lastLesson.lessons.course_id}/${lastLesson.lesson_id}`}
@@ -240,8 +242,8 @@ export default function LearnPage() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">🎯</span>
               <p className="text-[var(--text-muted)] text-sm">
-                Вы ещё не завершили ни одного урока.{" "}
-                <span className="text-[var(--color-primary-light)] font-semibold">Самое время начать!</span>
+                {t('learn_not_started').split('. ')[0]}.{" "}
+                <span className="text-[var(--color-primary-light)] font-semibold">{t('learn_not_started').split('. ').slice(1).join('. ')}</span>
               </p>
             </div>
           )}
@@ -253,14 +255,14 @@ export default function LearnPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="section-title-line">
             <BookOpen size={20} className="text-[var(--color-primary-light)]" />
-            <h3 className="font-display text-2xl font-bold">Мои курсы</h3>
+            <h3 className="font-display text-2xl font-bold">{t('learn_my_courses')}</h3>
           </div>
           <Link
             href="/learn/studio"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white rounded-xl font-bold text-sm transition-all shadow-lg hover:shadow-[var(--color-primary)]/40 hover:-translate-y-1 active:scale-95 shrink-0"
           >
             <Video size={18} />
-            Авторская студия
+            {t('learn_studio')}
           </Link>
         </div>
 
@@ -316,7 +318,7 @@ export default function LearnPage() {
                   {/* Progress Overlay */}
                   <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
                     <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-white/90">
-                      <span>Прогресс</span>
+                      <span>{t('learn_progress')}</span>
                       <span>{course.progress}%</span>
                     </div>
                     <div className="progress-bar-track bg-white/20 h-1.5 backdrop-blur-sm">
@@ -337,7 +339,7 @@ export default function LearnPage() {
                 {/* Content Area */}
                 <div className="p-6 relative z-20">
                   <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1 line-clamp-1 group-hover:text-[var(--color-primary-light)] transition-colors">{course.title}</h3>
-                  <p className="text-xs text-[var(--text-muted)]">{course.completed}/{course.total} уроков пройдено</p>
+                  <p className="text-xs text-[var(--text-muted)]">{course.completed}/{course.total} {t('learn_lessons_done')}</p>
                 </div>
               </Link>
             ))
@@ -356,16 +358,16 @@ export default function LearnPage() {
                 📭
               </div>
               <h4 className="font-bold text-xl text-[var(--text-secondary)]">
-                У вас пока нет активных курсов
+                {t('learn_no_active')}
               </h4>
               <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
-                Выберите курс на главной странице и завершите первый урок, чтобы он появился здесь.
+                {t('learn_no_active_desc')}
               </p>
               <Link
                 href="/"
                 className="btn-primary inline-flex mt-4"
               >
-                Найти курс
+                {t('learn_find_course')}
                 <ChevronRight size={18} />
               </Link>
             </div>
@@ -377,7 +379,7 @@ export default function LearnPage() {
       <div className="relative z-10 space-y-5 pt-10">
         <div className="section-title-line">
           <Sparkles size={20} className="text-[var(--color-primary-light)]" />
-          <h3 className="font-display text-2xl font-bold">Курсы от сообщества</h3>
+          <h3 className="font-display text-2xl font-bold">{t('learn_community')}</h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -445,7 +447,7 @@ export default function LearnPage() {
             ))
           ) : (
             <div className="col-span-full p-8 text-center text-[var(--text-muted)] bg-[var(--surface)] rounded-3xl border border-dashed border-[var(--border-color)]">
-              Пока нет курсов от сообщества. Будьте первыми, кто загрузит свой курс в Авторской студии!
+              {t('learn_no_community')}
             </div>
           )}
         </div>

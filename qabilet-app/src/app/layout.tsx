@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Nunito } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { AccessibilityProvider } from "@/components/AccessibilityProvider";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import { Sidebar } from "@/components/Sidebar";
 import { FAB } from "@/components/FAB";
 import { SettingsPanel } from "@/components/SettingsPanel";
@@ -34,33 +34,20 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen flex bg-[var(--bg)] text-[var(--text-primary)] transition-colors duration-300">
-        <AccessibilityProvider>
-          <Sidebar />
-          <main className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 md:p-8">
-              <div className="max-w-5xl mx-auto w-full">
-                {children}
+        <LanguageProvider>
+          <AccessibilityProvider>
+            <Sidebar />
+            <main className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8">
+                <div className="max-w-5xl mx-auto w-full">
+                  {children}
+                </div>
               </div>
-            </div>
-          </main>
-          <FAB />
-          <SettingsPanel />
-          <div id="google_translate_element" style={{ display: 'none' }}></div>
-          <Script id="google-translate-init" strategy="afterInteractive">
-            {`
-              function googleTranslateElementInit() {
-                new google.translate.TranslateElement(
-                  { pageLanguage: 'ru', autoDisplay: false },
-                  'google_translate_element'
-                );
-              }
-            `}
-          </Script>
-          <Script 
-            src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" 
-            strategy="afterInteractive" 
-          />
-        </AccessibilityProvider>
+            </main>
+            <FAB />
+            <SettingsPanel />
+          </AccessibilityProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

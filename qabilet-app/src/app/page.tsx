@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getCourses, getUserProgress } from "@/app/actions";
 import { supabase } from "@/lib/supabase";
 import { ArrowRight, Layers, Infinity as InfinityIcon, ShieldCheck, Sparkles, Video, MessageCircle, BookOpen, Activity } from "lucide-react";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface Course {
   id: string;
@@ -23,6 +24,7 @@ export default function Home() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     setMounted(true);
@@ -65,9 +67,9 @@ export default function Home() {
   }, []);
 
   const stats = [
-    { value: "4", label: "Модуля", icon: Layers },
-    { value: "100%", label: "Доступность", icon: ShieldCheck },
-    { value: "∞", label: "Возможности", icon: InfinityIcon },
+    { value: "4", labelKey: "home_stat_modules" as const, icon: Layers },
+    { value: "100%", labelKey: "home_stat_access" as const, icon: ShieldCheck },
+    { value: "∞", labelKey: "home_stat_possibilities" as const, icon: InfinityIcon },
   ];
 
   return (
@@ -91,19 +93,19 @@ export default function Home() {
       <div className="text-center py-10 relative z-10">
         <div className="flex justify-center mb-5">
           <span className="hero-badge">
-            🌟 Платформа доступности
+            {t('home_badge')}
           </span>
         </div>
 
         <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-black mb-4 leading-[1.1] tracking-tight">
-          Возможности
+          {t('home_hero_title')}
           <br />
-          <span className="gradient-text">без границ</span>
+          <span className="gradient-text">{t('home_hero_title2')}</span>
         </h2>
 
         <p className="text-[var(--text-secondary)] text-lg max-w-md mx-auto leading-relaxed">
-          Технологии на службе каждого человека —<br className="hidden md:block" />
-          <span className="text-[var(--text-muted)]">независимо от ограничений</span>
+          {t('home_hero_sub')}<br className="hidden md:block" />
+          <span className="text-[var(--text-muted)]">{t('home_hero_sub2')}</span>
         </p>
       </div>
 
@@ -116,9 +118,9 @@ export default function Home() {
           boxShadow: 'var(--shadow-card)',
         }}
       >
-        {stats.map(({ value, label, icon: Icon }, i) => (
+        {stats.map(({ value, labelKey, icon: Icon }, i) => (
           <div
-            key={label}
+            key={labelKey}
             className="stat-card flex flex-col items-center justify-center py-7 px-4 gap-2"
             style={{ borderRadius: i === 0 ? '20px 0 0 20px' : i === 2 ? '0 20px 20px 0' : '0' }}
           >
@@ -135,7 +137,7 @@ export default function Home() {
               {value}
             </span>
             <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold">
-              {label}
+              {t(labelKey)}
             </span>
           </div>
         ))}
@@ -146,10 +148,10 @@ export default function Home() {
         <div className="text-center space-y-3">
           <div className="section-title-line justify-center">
             <Sparkles size={20} className="text-[var(--color-primary-light)]" />
-            <h3 className="font-display text-3xl font-bold">Наши главные фишки</h3>
+            <h3 className="font-display text-3xl font-bold">{t('home_features_title')}</h3>
           </div>
           <p className="text-[var(--text-muted)] text-sm max-w-lg mx-auto">
-            Инновационные инструменты, созданные для обеспечения максимальной доступности и комфорта в обучении и общении.
+            {t('home_features_sub')}
           </p>
         </div>
 
@@ -164,13 +166,13 @@ export default function Home() {
                 <MessageCircle size={28} color="white" />
               </div>
               <div>
-                <h4 className="text-2xl font-bold mb-2 group-hover:text-[var(--color-primary-light)] transition-colors">ИИ-Тьютор</h4>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[var(--color-primary-light)] transition-colors">{t('home_ai_title')}</h4>
                 <p className="text-[var(--text-secondary)] leading-relaxed">
-                  Персональный ассистент на базе искусственного интеллекта, готовый ответить на любые вопросы и помочь в обучении 24/7.
+                  {t('home_ai_desc')}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--color-primary-light)] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                Запустить чат <ArrowRight size={14} />
+                {t('home_ai_cta')} <ArrowRight size={14} />
               </div>
             </div>
           </Link>
@@ -185,13 +187,13 @@ export default function Home() {
                 <Video size={28} color="white" />
               </div>
               <div>
-                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#06B6D4] transition-colors">Видеозвонки</h4>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#06B6D4] transition-colors">{t('home_call_title')}</h4>
                 <p className="text-[var(--text-secondary)] leading-relaxed">
-                  Специализированная система видеосвязи с поддержкой сурдоперевода и интеллектуального распознавания речи.
+                  {t('home_call_desc')}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#06B6D4] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                Запустить звонок <ArrowRight size={14} />
+                {t('home_call_cta')} <ArrowRight size={14} />
               </div>
             </div>
           </Link>
@@ -206,13 +208,13 @@ export default function Home() {
                 <Activity size={28} color="white" />
               </div>
               <div>
-                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#F59E0B] transition-colors">Распознавание жестов</h4>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#F59E0B] transition-colors">{t('home_gestures_title')}</h4>
                 <p className="text-[var(--text-secondary)] leading-relaxed">
-                  Уникальная технология перевода языка жестов в текст в реальном времени с использованием вашей веб-камеры.
+                  {t('home_gestures_desc')}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#F59E0B] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                Начать перевод <ArrowRight size={14} />
+                {t('home_gestures_cta')} <ArrowRight size={14} />
               </div>
             </div>
           </Link>
@@ -227,13 +229,13 @@ export default function Home() {
                 <BookOpen size={28} color="white" />
               </div>
               <div>
-                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#10B981] transition-colors">Азбука жестов</h4>
+                <h4 className="text-2xl font-bold mb-2 group-hover:text-[#10B981] transition-colors">{t('home_signs_title')}</h4>
                 <p className="text-[var(--text-secondary)] leading-relaxed">
-                  Интерактивный тренажер для изучения алфавита и базовых знаков языка жестов в доступном формате.
+                  {t('home_signs_desc')}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#10B981] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                Начать обучение <ArrowRight size={14} />
+                {t('home_signs_cta')} <ArrowRight size={14} />
               </div>
             </div>
           </Link>

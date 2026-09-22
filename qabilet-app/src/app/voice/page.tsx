@@ -5,6 +5,7 @@ import { Mic, Volume2, Square, Loader2, Radio } from "lucide-react";
 import { useAccessibility } from "@/components/AccessibilityProvider";
 import { logChatMessage } from "@/app/actions";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function VoicePage() {
   const [isListening, setIsListening] = useState(false);
@@ -17,6 +18,7 @@ export default function VoicePage() {
 
   const router = useRouter();
   const { ttsEnabled } = useAccessibility();
+  const { t } = useLanguage();
 
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
@@ -289,9 +291,9 @@ export default function VoicePage() {
           </div>
         </div>
         <h2 className="font-display text-3xl md:text-4xl font-black mb-2">
-          Голосовой <span className="gradient-text">помощник</span>
+          {t('voice_title').split(' ')[0]} <span className="gradient-text">{t('voice_title').split(' ').slice(1).join(' ')}</span>
         </h2>
-        <p className="text-[var(--text-secondary)]">Говорите — я слушаю и помогаю</p>
+        <p className="text-[var(--text-secondary)]">{t('voice_subtitle')}</p>
       </div>
 
       {/* Mic button */}
@@ -327,7 +329,7 @@ export default function VoicePage() {
                 : '0 0 50px rgba(124,58,237,0.5), 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
               transform: isListening ? 'scale(1.05)' : 'scale(1)',
             }}
-            aria-label={isListening ? "Остановить" : "Начать запись"}
+            aria-label={isListening ? t('voice_stop') : t('voice_btn_start')}
           >
             <Mic size={48} className="text-white relative z-10 drop-shadow-lg" />
           </button>
@@ -439,7 +441,7 @@ export default function VoicePage() {
           }}
         >
           <Square size={18} />
-          Стоп
+          {t('voice_stop')}
         </button>
       </div>
     </div>
