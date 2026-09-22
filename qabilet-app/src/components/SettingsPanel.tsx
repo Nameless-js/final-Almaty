@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Type, Contrast, Volume2, Palette, Check } from "lucide-react";
+import { X, Type, Contrast, Volume2, Palette, Check, Globe } from "lucide-react";
 import { useAccessibility } from "./AccessibilityProvider";
 
 function Toggle({
@@ -36,7 +36,34 @@ export function SettingsPanel() {
     setDyslexiaFont,
     ttsEnabled,
     setTtsEnabled,
+    readOnHover,
+    setReadOnHover,
   } = useAccessibility();
+
+  const [currentLang, setCurrentLang] = useState('ru');
+
+  useEffect(() => {
+    // Read cookie on mount
+    const match = document.cookie.match(/(?:^|; )googtrans=([^;]*)/);
+    if (match) {
+      const val = decodeURIComponent(match[1]);
+      if (val === '/ru/en') setCurrentLang('en');
+      else if (val === '/ru/kk') setCurrentLang('kk');
+      else setCurrentLang('ru');
+    }
+  }, []);
+
+  const changeLanguage = (lang: string) => {
+    if (lang === 'ru') {
+      // Clear cookie or set to default
+      document.cookie = "googtrans=/ru/ru; path=/; domain=" + window.location.hostname;
+      document.cookie = "googtrans=/ru/ru; path=/";
+    } else {
+      document.cookie = `googtrans=/ru/${lang}; path=/; domain=` + window.location.hostname;
+      document.cookie = `googtrans=/ru/${lang}; path=/`;
+    }
+    window.location.reload();
+  };
 
   useEffect(() => {
     const handleOpen = () => setIsOpen(true);
@@ -102,6 +129,34 @@ export function SettingsPanel() {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
+
+          {/* Language Section */}
+          <div className="settings-section space-y-3">
+            <h4 className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold flex items-center gap-2 mb-4">
+              <Globe size={14} />
+              Язык / Language
+            </h4>
+            <div className="grid grid-cols-3 gap-2">
+              <button 
+                onClick={() => changeLanguage('ru')}
+                className={`py-2 px-1 rounded-xl text-xs sm:text-sm font-bold transition-all border ${currentLang === 'ru' ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-md' : 'bg-[var(--bg-card2)] border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--surface)]'}`}
+              >
+                Русский
+              </button>
+              <button 
+                onClick={() => changeLanguage('kk')}
+                className={`py-2 px-1 rounded-xl text-xs sm:text-sm font-bold transition-all border ${currentLang === 'kk' ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-md' : 'bg-[var(--bg-card2)] border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--surface)]'}`}
+              >
+                Қазақша
+              </button>
+              <button 
+                onClick={() => changeLanguage('en')}
+                className={`py-2 px-1 rounded-xl text-xs sm:text-sm font-bold transition-all border ${currentLang === 'en' ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-md' : 'bg-[var(--bg-card2)] border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--surface)]'}`}
+              >
+                English
+              </button>
+            </div>
+          </div>
 
           {/* Reading Section */}
           <div className="settings-section space-y-3">
@@ -195,6 +250,14 @@ export function SettingsPanel() {
                 <span className="text-xs text-[var(--text-muted)]">Голосовой помощник говорит</span>
               </div>
               <Toggle checked={ttsEnabled} onChange={setTtsEnabled} />
+            </label>
+
+            <label className="settings-label">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold text-[var(--text-primary)] text-sm">Читать при наведении</span>
+                <span className="text-xs text-[var(--text-muted)]">Озвучивать текст под курсором</span>
+              </div>
+              <Toggle checked={readOnHover} onChange={setReadOnHover} />
             </label>
           </div>
 

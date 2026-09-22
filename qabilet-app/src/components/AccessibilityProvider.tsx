@@ -18,6 +18,8 @@ interface AccessibilityContextProps {
   setDyslexiaFont: (val: boolean) => void;
   ttsEnabled: boolean;
   setTtsEnabled: (val: boolean) => void;
+  readOnHover: boolean;
+  setReadOnHover: (val: boolean) => void;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextProps | undefined>(undefined);
@@ -28,6 +30,7 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
   const [largeFont, setLargeFont] = useState(false);
   const [dyslexiaFont, setDyslexiaFont] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [readOnHover, setReadOnHover] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const isLoaded = useRef(false);
@@ -113,6 +116,73 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
 
   }, [theme, highContrast, largeFont, dyslexiaFont, ttsEnabled, profileId]);
 
+  // Read text on hover effect
+  useEffect(() => {
+    // Load from local storage initially
+    const saved = localStorage.getItem('qabilet_read_on_hover');
+    if (saved === 'true') setReadOnHover(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('qabilet_read_on_hover', readOnHover.toString());
+    
+    if (!readOnHover) {
+      window.speechSynthesis.cancel();
+      return;
+    }
+
+    let hoverTimer: NodeJS.Timeout;
+    let lastElement: HTMLElement | null = null;
+    
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const tagsToRead = ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SPAN', 'BUTTON', 'A', 'LABEL', 'LI'];
+      const closest = target.closest(tagsToRead.join(','));
+      
+      if (closest && closest !== lastElement && closest.textContent) {
+        lastElement = closest as HTMLElement;
+        const text = closest.textContent.trim();
+        if (!text) return;
+        
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          // Try to get lang from googtrans cookie or fallback to Russian
+          const match = document.cookie.match(/(?:^|; )googtrans=([^;]*)/);
+          let lang = 'ru-RU';
+          if (match) {
+            const val = decodeURIComponent(match[1]);
+            if (val.includes('/en')) lang = 'en-US';
+            else if (val.includes('/kk')) lang = 'kk-KZ';
+          }
+          utterance.lang = lang;
+          window.speechSynthesis.speak(utterance);
+        }, 500); // 500ms hover delay to prevent spamming
+      }
+    };
+    
+    const handleMouseOut = (e: MouseEvent) => {
+      // Only cancel if moving completely out of the reading element
+      const target = e.target as HTMLElement;
+      if (lastElement && !lastElement.contains(e.relatedTarget as Node)) {
+        clearTimeout(hoverTimer);
+        window.speechSynthesis.cancel();
+        lastElement = null;
+      }
+    };
+
+    document.addEventListener('mouseover', handleMouseOver);
+    document.addEventListener('mouseout', handleMouseOut);
+
+    return () => {
+      document.removeEventListener('mouseover', handleMouseOver);
+      document.removeEventListener('mouseout', handleMouseOut);
+      clearTimeout(hoverTimer);
+      window.speechSynthesis.cancel();
+    };
+  }, [readOnHover]);
+
   if (!sessionLoaded && pathname !== '/login') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6" style={{ background: 'var(--bg)' }}>
@@ -164,6 +234,8 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
         setDyslexiaFont,
         ttsEnabled,
         setTtsEnabled,
+        readOnHover,
+        setReadOnHover,
       }}
     >
       {children}

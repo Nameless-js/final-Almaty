@@ -20,7 +20,6 @@ import {
   X,
   Loader2
 } from "lucide-react";
-import SignRobot from "@/components/SignRobot";
 import { SIGNS_DATA } from "@/lib/data";
 import { PeerConnection } from "@/lib/PeerConnection";
 import { getGesturesLibrary } from "@/app/actions";
@@ -666,12 +665,7 @@ export default function CallPage() {
               </div>
             </div>
 
-            {/* 3D Robot Assistant (Always in the corner as an overlay) */}
-            <div className="absolute top-24 left-6 w-48 md:w-64 aspect-square z-20 pointer-events-none group">
-              <div className="w-full h-full transform transition-all duration-500 hover:scale-110">
-                <SignRobot currentWord={recognizedText || peerText} />
-              </div>
-            </div>
+
 
             {/* Subtitles / Translation Overlay (Hearing Mode: shows gestures from mute peer) */}
             {role === "hearing" && peerText && (

@@ -6,7 +6,6 @@ import { HandMetal, Camera, Book, Search, Video, X, Info, Hand, Download } from 
 import { SIGNS_DATA, ALPHABET_DATA } from "@/lib/data";
 import { getGesturesLibrary, seedGestures, saveGesturePattern } from "@/app/actions";
 import SignAvatar from "@/components/SignAvatar";
-import SignRobot from "@/components/SignRobot";
 
 // MediaPipe types (simplified for usage)
 type HandLandmark = { x: number; y: number; z: number };
@@ -658,9 +657,9 @@ export default function SignsPage() {
               
               <div className="relative z-0 flex flex-col items-center w-full px-8">
                 <div className="w-full aspect-video bg-[var(--bg-card)] rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-2 border-[var(--border-color)] relative overflow-hidden">
-                  <SignRobot 
+                  <SignAvatar 
                     currentWord={selectedSign.isLetter ? selectedSign.word.split(' ')[1] : selectedSign.word} 
-                    showStatus={false}
+                    className="w-full h-full border-none"
                   />
                 </div>
                 <div className="px-4 py-1 bg-[var(--color-primary)] text-white text-[10px] font-bold rounded-full uppercase tracking-tighter">
